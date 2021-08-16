@@ -60,13 +60,25 @@ fn get_iface_ips(iface_name: &str) -> Vec<IpNetwork> {
     vec![]
 }
 
-/// Try to get a IPv6 address from a interface with `ifconfig` if possible.
+/// Try to get a IPv6 address from a interface with `ifconfig` or `ip` if possible.
 /// Two Results are used to indicate a "determining error", with which no other
 /// backends will be tried, or simply an error with the current IP backend.
-pub fn get_ipv6_ifconfig(nic: &str, permanent: bool) -> Result<Result<IpAddr, Error>, PopenError> {
-    let out = Exec::cmd("ifconfig")
-        .args(&[nic, "inet6"])
-        .stream_stdout()?;
+fn get_ipv6_ifconfig_ip(nic: &str, permanent: bool) -> Result<Result<IpAddr, Error>, PopenError> {
+    // First try to use `ip`
+    let out = Exec::cmd("ip")
+        .args(&[
+            "address",
+            "show",
+            "dev",
+            nic,
+            "scope",
+            "global",
+            "permanent",
+        ])
+        .stream_stdout()
+        // If that failed, try ifconfig
+        .or_else(|_| Exec::cmd("ifconfig").args(&[nic, "inet6"]).stream_stdout())?;
+    // Extract output
     let out_br = BufReader::new(out);
     // Some systems use temporary addresses and one permanent address.
     // The second fields indicates whether the "secured"/permanent flag is present.
@@ -78,7 +90,13 @@ pub fn get_ipv6_ifconfig(nic: &str, permanent: bool) -> Result<Result<IpAddr, Er
         // A shorter one is certainly not an entry
         // Check if the label is "inet6"
         if fields.len() > 1 && fields[0] == "inet6" {
-            if let Ok(addr6) = IpAddr::from_str(&fields[1]) {
+            let address_stripped = match fields[1].split_once("/") {
+                // `ip` includes the prefix length in the address
+                Some((addr, _prefixlen)) => addr,
+                // but `ifconfig` doesn't
+                None => &fields[1],
+            };
+            if let Ok(addr6) = IpAddr::from_str(address_stripped) {
                 // If "secured" is in the flags, it is permanent
                 let is_perm = fields.iter().any(|f| f == "secured");
                 if !addr6.is_loopback() {
@@ -164,8 +182,8 @@ fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr, Error> {
 fn get_local_ipv6(nic: Option<&str>) -> Result<IpAddr, Error> {
     match nic {
         Some(nic) => {
-            get_ipv6_ifconfig(nic, true).unwrap_or_else(|_| {
-                // TODO: `ip` and pnet IPv6 backend
+            get_ipv6_ifconfig_ip(nic, true).unwrap_or_else(|_| {
+                // TODO: pnet and ipconfig.exe IPv6 backend
                 unimplemented!()
             })
         }

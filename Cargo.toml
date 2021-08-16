@@ -1,6 +1,6 @@
 [package]
 name = "namecom_ddns"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Zhang Maiyun <myzhang1029@hotmail.com>"]
 edition = "2018"
 
