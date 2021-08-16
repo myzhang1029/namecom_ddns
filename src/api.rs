@@ -17,7 +17,6 @@
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
-use reqwest;
 use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -40,13 +39,27 @@ impl Deref for ListingResponse {
 #[derive(Copy, Clone, Debug, Deserialize, Display, EnumString, Eq, PartialEq, Serialize)]
 pub enum RecordType {
     A,
-    AAAA,
-    ANAME,
-    CNAME,
-    MX,
-    NS,
-    SRV,
-    TXT,
+    #[strum(serialize = "AAAA")]
+    #[serde(rename = "AAAA")]
+    Aaaa,
+    #[strum(serialize = "ANAME")]
+    #[serde(rename = "ANAME")]
+    Aname,
+    #[strum(serialize = "CNAME")]
+    #[serde(rename = "CNAME")]
+    Cname,
+    #[strum(serialize = "MX")]
+    #[serde(rename = "MX")]
+    Mx,
+    #[strum(serialize = "NS")]
+    #[serde(rename = "NS")]
+    Ns,
+    #[strum(serialize = "SRV")]
+    #[serde(rename = "SRV")]
+    Srv,
+    #[strum(serialize = "TXT")]
+    #[serde(rename = "TXT")]
+    Txt,
 }
 
 /// Record item
@@ -70,13 +83,13 @@ pub struct NameComRecord {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NameComNewRecord {
     // None or "@" means apex
-    host: Option<String>,
+    pub host: Option<String>,
     #[serde(rename = "type")]
-    rec_type: RecordType,
-    answer: String,
-    ttl: u32,
+    pub rec_type: RecordType,
+    pub answer: String,
+    pub ttl: u32,
     // Only for MX or SRV
-    priority: Option<u32>,
+    pub priority: Option<u32>,
 }
 
 pub struct NameComDnsApi {
@@ -88,28 +101,22 @@ pub struct NameComDnsApi {
 
 /// Name.com DNS API helper
 ///
+/// get_record() and delete_record() are not used by this program,
+/// but kept for completeness.
 /// Reference: https://www.name.com/api-docs/DNS
 impl NameComDnsApi {
     /// Create a DNS API helper.
     ///
     /// username: API username.
     /// password: API key.
-    /// api_url: API endpoint like https://api.name.com/.
-    pub fn full_create(username: &str, password: &str, api_url: &str) -> Self {
+    /// api_url: Optional API endpoint. Defaults to https://api.name.com/.
+    pub fn create(username: &str, password: &str, api_url: &str) -> Self {
         Self {
             url: api_url.to_string(),
             username: username.to_string(),
             password: password.to_string(),
             client: Client::new(),
         }
-    }
-
-    /// Create a DNS API helper.
-    ///
-    /// username: API username.
-    /// password: API key.
-    pub fn create(username: &str, password: &str) -> Self {
-        Self::full_create(username, password, "https://api.name.com/")
     }
 
     /// Create a request with appropriate parameters.
@@ -142,7 +149,7 @@ impl NameComDnsApi {
     /// id: Identifier of the record.
     ///
     /// Returns a NameComRecord if succeeded.
-    pub async fn get_record(&self, domain: &str, id: i32) -> reqwest::Result<NameComRecord> {
+    pub async fn _get_record(&self, domain: &str, id: i32) -> reqwest::Result<NameComRecord> {
         Ok(self
             .with_param(Method::GET, &format!("domains/{}/records/{}", domain, id))
             .send()
@@ -197,7 +204,7 @@ impl NameComDnsApi {
     ///
     /// domain: The zone that the record belongs to.
     /// id: Identifier of the record.
-    pub async fn delete_record(&self, domain: &str, id: i32) -> reqwest::Result<()> {
+    pub async fn _delete_record(&self, domain: &str, id: i32) -> reqwest::Result<()> {
         self.with_param(
             Method::DELETE,
             &format!("domains/{}/records/{}", domain, id),

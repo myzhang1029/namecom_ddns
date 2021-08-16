@@ -1,0 +1,26 @@
+# Example Name.com DDNS configuration
+
+[core]
+# url = "https://api.name.com/"
+username = "example"
+key = "40-char Name.com API key"
+interval = 60
+
+[[records]]
+host = "ddns"
+zone = "example.com"
+type = "A"
+ttl = 300
+# "global" for an address as seen from the internet
+# "local" for an address on the NIC
+method = "global"
+# Ignored if method is "global"
+interface = "en0"
+
+[[records]]
+host = "ddns"
+zone = "example.com"
+type = "AAAA"
+ttl = 300
+method = "local"
+interface = "en0"
