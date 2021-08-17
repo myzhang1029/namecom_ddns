@@ -36,7 +36,7 @@ impl Deref for ListingResponse {
 }
 
 /// Type of the records
-#[derive(Copy, Clone, Debug, Deserialize, Display, EnumString, Eq, PartialEq, Serialize)]
+#[derive(Copy, Clone, Debug, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize)]
 pub enum RecordType {
     A,
     #[strum(serialize = "AAAA")]
@@ -101,8 +101,7 @@ pub struct NameComDnsApi {
 
 /// Name.com DNS API helper
 ///
-/// get_record() and delete_record() are not used by this program,
-/// but kept for completeness.
+/// get_record() and delete_record() are not used by this program, but kept for completeness.
 /// Reference: https://www.name.com/api-docs/DNS
 impl NameComDnsApi {
     /// Create a DNS API helper.
@@ -214,33 +213,31 @@ impl NameComDnsApi {
         Ok(())
     }
 
-    /// Create or update a record. The record is left intact if the new record is identical.
-    /// Note that if multiple records with the same type and name exists, the first one
-    /// (by the order returned by name.com) will be updated.
+    /// Search for records with the same type and host.
+    /// Note that only exact matches will be returned.
     ///
     /// domain: The zone that the record belongs to.
-    /// new_record: The new record.
+    /// rec_type: The type to search for.
+    /// host: The host to search for.
     ///
-    /// Returns a NameComRecord if succeeded.
-    pub async fn set_record(
+    /// Returns a vector of matching ids if succeeded.
+    pub async fn search_records(
         &self,
         domain: &str,
-        new_record: &NameComNewRecord,
-    ) -> reqwest::Result<NameComRecord> {
-        let records = self.list_records(domain).await?;
-        // Iterate over existing records to see if update is possible
-        for record in records.iter() {
-            if record.host == new_record.host && record.rec_type == new_record.rec_type {
-                return if record.answer == new_record.answer
-                    && record.ttl == new_record.ttl
-                    && record.priority == new_record.priority
-                {
-                    Ok(record.clone())
+        rec_type: RecordType,
+        host: Option<&str>,
+    ) -> reqwest::Result<Vec<i32>> {
+        Ok(self
+            .list_records(domain)
+            .await?
+            .iter()
+            .filter_map(|record| {
+                if (record.host.as_deref() == host) && record.rec_type == rec_type {
+                    Some(record.id)
                 } else {
-                    self.update_record(domain, record.id, new_record).await
-                };
-            }
-        }
-        self.create_record(domain, new_record).await
+                    None
+                }
+            })
+            .collect())
     }
 }

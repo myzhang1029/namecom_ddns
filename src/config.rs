@@ -33,7 +33,7 @@ pub struct NameComConfigCore {
 }
 
 /// Method to get the ip from
-#[derive(Copy, Clone, Debug, Deserialize)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, PartialEq)]
 pub enum NameComConfigMethod {
     #[serde(rename = "global")]
     Global,
@@ -42,7 +42,7 @@ pub enum NameComConfigMethod {
 }
 
 /// Record spec
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq)]
 pub struct NameComConfigRecord {
     pub host: String,
     pub zone: String,
