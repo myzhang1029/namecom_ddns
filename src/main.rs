@@ -18,6 +18,7 @@
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
+extern crate futures;
 extern crate gip;
 extern crate log;
 extern crate pnet;
@@ -36,11 +37,10 @@ mod ip;
 
 use log::{debug, error, info};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
-use tokio::{join, time};
+use tokio::{join, sync::RwLock, time};
 
 #[tokio::main]
 async fn main() {
@@ -82,7 +82,7 @@ async fn main() {
 struct App<'a> {
     client: &'a api::NameComDnsApi,
     records: &'a [config::NameComConfigRecord],
-    id_cache: Arc<RefCell<HashMap<config::NameComConfigRecord, i32>>>,
+    id_cache: Arc<RwLock<HashMap<config::NameComConfigRecord, i32>>>,
 }
 
 impl<'a> App<'a> {
@@ -90,7 +90,7 @@ impl<'a> App<'a> {
         Self {
             client,
             records,
-            id_cache: Arc::new(RefCell::new(HashMap::with_capacity(records.len()))),
+            id_cache: Arc::new(RwLock::new(HashMap::with_capacity(records.len()))),
         }
     }
 
@@ -100,20 +100,27 @@ impl<'a> App<'a> {
             interval.tick().await;
             info!("Checking and updating addresses");
             // Update each record
-            for item in self.records.iter() {
-                self.update_single_item(item).await;
-            }
+            futures::future::join_all(
+                self.records
+                    .iter()
+                    .map(|item| self.update_single_item(item)),
+            )
+            .await;
             info!("Finished checking and updating addresses");
         }
     }
 
     /// Get the id of a records, and cache it.
     async fn get_id(&self, item: &config::NameComConfigRecord) -> reqwest::Result<Option<i32>> {
-        let mut cache = self.id_cache.borrow_mut();
-        let id = cache.get(item);
+        let id = {
+            // Make sure the read copy goes out of scope
+            let cache = self.id_cache.read().await;
+            // Hack to convert Option<&i32> to Option<i32>
+            (|| Some(*cache.get(item)?))()
+        };
         Ok(match id {
             // Check if the id still points to the same record skipped
-            Some(id) => Some(*id),
+            Some(id) => Some(id),
             None => {
                 let matches = self
                     .client
@@ -122,6 +129,7 @@ impl<'a> App<'a> {
                 if matches.is_empty() {
                     None
                 } else {
+                    let mut cache = self.id_cache.write().await;
                     cache.insert(item.clone(), matches[0]);
                     Some(matches[0])
                 }
