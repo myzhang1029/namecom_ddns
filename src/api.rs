@@ -20,6 +20,7 @@
 use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
+use std::time::Duration;
 use strum_macros::{Display, EnumString};
 
 #[derive(Deserialize, Debug)]
@@ -95,7 +96,7 @@ pub struct NameComNewRecord {
 pub struct NameComDnsApi {
     url: String,
     username: String,
-    password: String,
+    pub password: String,
     client: Client,
 }
 
@@ -108,14 +109,26 @@ impl NameComDnsApi {
     ///
     /// username: API username.
     /// password: API key.
-    /// api_url: Optional API endpoint. Defaults to https://api.name.com/.
-    pub fn create(username: &str, password: &str, api_url: &str) -> Self {
-        Self {
+    /// api_url: API endpoint like https://api.name.com/.
+    /// timeout: HTTP timeout in seconds, 0 means no timeout.
+    pub fn create(
+        username: &str,
+        password: &str,
+        api_url: &str,
+        timeout: u64,
+    ) -> reqwest::Result<Self> {
+        let client = match timeout {
+            0 => Client::new(),
+            _ => Client::builder()
+                .timeout(Duration::from_secs(timeout))
+                .build()?,
+        };
+        Ok(Self {
             url: api_url.to_string(),
             username: username.to_string(),
             password: password.to_string(),
-            client: Client::new(),
-        }
+            client,
+        })
     }
 
     /// Create a request with appropriate parameters.

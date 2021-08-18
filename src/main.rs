@@ -63,17 +63,17 @@ async fn main() {
     }
 
     // Check and update the DNS according to the config
-    let mut interval = time::interval(time::Duration::from_secs(
-        configuration.core.interval as u64 * 60,
-    ));
+    let mut interval = time::interval(time::Duration::from_secs(configuration.core.interval * 60));
     debug!("Configuration: {:?}", configuration);
-    let url = configuration
-        .core
-        .url
-        .unwrap_or_else(|| "https://api.name.com/".to_string());
+    let url = configuration.core.url;
     // Create a API client
-    let client =
-        api::NameComDnsApi::create(&configuration.core.username, &configuration.core.key, &url);
+    let client = api::NameComDnsApi::create(
+        &configuration.core.username,
+        &configuration.core.key,
+        &url,
+        configuration.core.timeout,
+    )
+    .unwrap();
     let app = App::new(&configuration.records, &client);
     app.updater_loop(&mut interval).await;
 }

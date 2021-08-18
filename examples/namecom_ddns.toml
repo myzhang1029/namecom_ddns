@@ -4,7 +4,10 @@
 # url = "https://api.name.com/"
 username = "example"
 key = "40-char Name.com API key"
-interval = 60
+# Timeout in seconds, 0 is no timeout
+# timeout = 30
+# Update interval in minutes
+# interval = 60
 
 [[records]]
 host = "ddns"

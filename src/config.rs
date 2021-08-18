@@ -26,10 +26,28 @@ use std::io::prelude::*;
 /// Account spec
 #[derive(Debug, Deserialize)]
 pub struct NameComConfigCore {
-    pub url: Option<String>,
+    #[serde(default = "default_url")]
+    pub url: String,
     pub username: String,
     pub key: String,
-    pub interval: u32,
+    /// Update interval in minutes
+    #[serde(default = "default_interval")]
+    pub interval: u64,
+    /// Timeout in seconds
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+}
+
+fn default_url() -> String {
+    String::from("https://api.name.com/")
+}
+
+fn default_interval() -> u64 {
+    60
+}
+
+fn default_timeout() -> u64 {
+    30
 }
 
 /// Method to get the ip from
