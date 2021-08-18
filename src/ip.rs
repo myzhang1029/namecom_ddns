@@ -67,17 +67,19 @@ fn get_ipv6_ifconfig_ip(nic: &str, permanent: bool) -> Result<Result<IpAddr, Err
     // First try to use `ip`
     let out = Exec::cmd("ip")
         .args(&[
-            "address",
-            "show",
-            "dev",
-            nic,
-            "scope",
-            "global",
-            "permanent",
+            "address", "show", "dev", nic,
+            // This scope filters out unique-local addresses
+            "scope", "global",
         ])
         .stream_stdout()
-        // If that failed, try ifconfig
-        .or_else(|_| Exec::cmd("ifconfig").args(&[nic, "inet6"]).stream_stdout())?;
+        // If that failed, try (BSD) ifconfig
+        .or_else(|_| {
+            Exec::cmd("ifconfig")
+                .args(&["-L", nic, "inet6"])
+                .stream_stdout()
+        })
+        // Linux ifconfig cannot distinguish between RFC 3041 temporary/permanent addresses
+        .or_else(|_| Exec::cmd("ifconfig").arg(nic).stream_stdout())?;
     // Extract output
     let out_br = BufReader::new(out);
     // Some systems use temporary addresses and one permanent address.
@@ -97,8 +99,11 @@ fn get_ipv6_ifconfig_ip(nic: &str, permanent: bool) -> Result<Result<IpAddr, Err
                 None => &fields[1],
             };
             if let Ok(addr6) = IpAddr::from_str(address_stripped) {
-                // If "secured" is in the flags, it is permanent
-                let is_perm = fields.iter().any(|f| f == "secured");
+                // If "secured" (for RFC 3041, ifconfig) or "mngtmpaddr" (RFC 3041, ip) is in the flags, it is permanent
+                let is_perm = fields.iter().any(|f| f == "secured" || f == "mngtmpaddr")
+                // But any "temporary" tells us it is not.
+                    && fields.iter().all(|f| f != "temporary");
+                // Treating non-RFC-3041 interface's addresses all the same
                 if !addr6.is_loopback() {
                     addrs.push((addr6, is_perm));
                 }
