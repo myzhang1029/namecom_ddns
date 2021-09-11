@@ -89,7 +89,7 @@ pub enum GlobalIpError {
     #[error("field `{0}' in response can't be decoded")]
     JsonDecodeError(String),
     #[error(transparent)]
-    DnsError(#[from] ResolveError),
+    DnsError(#[from] Box<ResolveError>),
     #[error("specified DNS server `{0}' has no address")]
     DnsNoServerError(String),
 }
@@ -162,25 +162,25 @@ async fn build_client_get(
 ) -> Result<String> {
     let client = build_client(timeout, proxy)
         .await
-        .or_else(|e| Err(GlobalIpError::ReqwestError(e)))?;
+        .map_err(GlobalIpError::ReqwestError)?;
     Ok(client
         .get(url)
         .send()
         .await
-        .or_else(|e| Err(GlobalIpError::ReqwestError(e)))?
+        .map_err(GlobalIpError::ReqwestError)?
         .text()
         .await
-        .or_else(|e| Err(GlobalIpError::ReqwestError(e)))?)
+        .map_err(GlobalIpError::ReqwestError)?)
 }
 
 /// Create a getip::Result containing the IP address
 fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
     Ok(match addr_type {
         IpType::Ipv4 => IpAddr::V4(
-            Ipv4Addr::from_str(&addr).or_else(|e| Err(GlobalIpError::AddrParseError(e)))?,
+            Ipv4Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?,
         ),
         IpType::Ipv6 => IpAddr::V6(
-            Ipv6Addr::from_str(&addr).or_else(|e| Err(GlobalIpError::AddrParseError(e)))?,
+            Ipv6Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?,
         ),
     })
 }
@@ -213,7 +213,7 @@ impl Provider for ProviderJson {
         let resp = build_client_get(&self.info.url, self.timeout, &self.proxy).await?;
         // Try to parse the response as JSON
         let json: Value =
-            serde_json::from_str(&resp).or_else(|e| Err(GlobalIpError::JsonParseError(e)))?;
+            serde_json::from_str(&resp).map_err(GlobalIpError::JsonParseError)?;
         let key = self
             .info
             .key
@@ -224,8 +224,8 @@ impl Provider for ProviderJson {
             .get(&key)
             .ok_or_else(|| GlobalIpError::JsonNotFoundError(key.clone()))?
             .as_str()
-            .ok_or_else(|| GlobalIpError::JsonDecodeError(key))?;
-        create_ipaddr(&addr, self.info.addr_type)
+            .ok_or(GlobalIpError::JsonDecodeError(key))?;
+        create_ipaddr(addr, self.info.addr_type)
     }
 
     make_get_type! {}
@@ -263,16 +263,18 @@ impl Provider for ProviderDns {
             .url
             .split_once('@')
             .expect("DNS Provider URL should be like query@server");
-        let mut opts = ResolverOpts::default();
-        opts.timeout = Duration::from_millis(self.timeout);
+        let opts = ResolverOpts {
+            timeout: Duration::from_millis(self.timeout),
+            ..Default::default()
+        };
         // First get the address of the DNS server
         let resolver = TokioAsyncResolver::tokio(ResolverConfig::new(), opts)
-            .or_else(|e| Err(GlobalIpError::DnsError(e)))?;
+            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
         // Get Resolver's address
         let server_addr = host_to_addr(resolver, server, self.info.addr_type)
             .await
             // Deal with errors
-            .or_else(|e| Err(GlobalIpError::DnsError(e)))?
+            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?
             // Deal with Nones
             .ok_or_else(|| GlobalIpError::DnsNoServerError(server.to_string()))?;
         // Construct Resolve config
@@ -286,10 +288,10 @@ impl Provider for ProviderDns {
         config.add_name_server(ns);
         // Create new resolver
         let resolver =
-            TokioAsyncResolver::tokio(config, opts).or_else(|e| Err(GlobalIpError::DnsError(e)))?;
+            TokioAsyncResolver::tokio(config, opts).map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
         let addr = host_to_addr(resolver, query, self.info.addr_type)
             .await
-            .or_else(|e| Err(GlobalIpError::DnsError(e)))?
+            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?
             // Deal with Nones
             .ok_or_else(|| GlobalIpError::DnsNoServerError(server.to_string()))?;
         Ok(addr)
