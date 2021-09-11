@@ -165,6 +165,17 @@ macro_rules! cast_ipv4 {
     };
 }
 
+/// Force-cast $id: IpAddr to Ipv6Addr
+macro_rules! cast_ipv6 {
+    ($id: expr) => {
+        if let IpAddr::V6(ip) = $id {
+            ip
+        } else {
+            unreachable!()
+        }
+    };
+}
+
 /// Get a local IPv4 address on the specified interface.
 pub async fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
     match nic {
@@ -187,13 +198,18 @@ pub async fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
                 .iter()
                 // Filter out non-v4 addresses
                 .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv4()))
-                // Turn networks into addresses
-                .map(|nw| nw.ip())
                 // Remove loopback, link local, and unspecified
-                .filter(|addr| {
-                    !(addr.is_loopback()
+                .filter_map(|nw| {
+                    // Turn networks into addresses
+                    let addr = nw.ip();
+                    if addr.is_loopback()
                         || cast_ipv4!(addr).is_link_local()
-                        || addr.is_unspecified())
+                        || addr.is_unspecified()
+                    {
+                        None
+                    } else {
+                        Some(addr)
+                    }
                 })
                 // Must be collected to use it twice
                 .collect();
@@ -223,6 +239,41 @@ pub async fn get_local_ipv6(nic: Option<&str>) -> Result<IpAddr> {
                 unimplemented!()
             })
         }
-        None => todo!(),
+        None => {
+            // No interface specified, iterate to find the first one with IPv6 addresses (and preferably a configured one)
+            let ifaces = interfaces();
+            let ipv6_addrs: Vec<IpAddr> = ifaces
+                .iter()
+                // Filter out non-v6 addresses
+                .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv6()))
+                // Remove loopback, link local, and unspecified
+                .filter_map(|nw| {
+                    // Turn networks into addresses
+                    let addr = nw.ip();
+                    if addr.is_loopback()
+                        || addr.is_unspecified()
+                        || (cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
+                    {
+                        None
+                    } else {
+                        Some(addr)
+                    }
+                })
+                // Must be collected to use it twice
+                .collect();
+            // Find the ones that are likely global
+            // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
+            let non_local_addrs: Vec<&IpAddr> = ipv6_addrs
+                .iter()
+                // .filter(|addr| !cast_ipv6!(addr).is_private())
+                .collect();
+            if !non_local_addrs.is_empty() {
+                Ok(*non_local_addrs[0])
+            } else if !ipv6_addrs.is_empty() {
+                Ok(ipv6_addrs[0])
+            } else {
+                Err(crate::Error::NoAddress)
+            }
+        }
     }
 }
