@@ -107,11 +107,11 @@ macro_rules! make_new {
     ($name: ident) => {
         impl $name {
             /// Create a new $name
-            fn new(info: ProviderInfo, timeout: u64, proxy: Option<(String, u16)>) -> Self {
+            fn new(info: &ProviderInfo, timeout: u64, proxy: &Option<(String, u16)>) -> Self {
                 Self(AbstractProvider {
-                    info,
+                    info: info.clone(),
                     timeout,
-                    proxy,
+                    proxy: proxy.clone(),
                 })
             }
         }
@@ -120,7 +120,7 @@ macro_rules! make_new {
 
 /// All providers have those fields
 #[derive(Clone, Debug)]
-struct AbstractProvider {
+pub struct AbstractProvider {
     pub info: ProviderInfo,
     pub timeout: u64,
     pub proxy: Option<(String, u16)>,
@@ -137,7 +137,7 @@ impl Default for AbstractProvider {
 }
 
 /// Build a new request client with timeout and proxy
-async fn build_client(timeout: u64, proxy: Option<(String, u16)>) -> reqwest::Result<Client> {
+async fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<Client> {
     let client = match (timeout, proxy) {
         (0, None) => Client::new(),
         (0, Some((host, port))) => Client::builder()
@@ -155,7 +155,11 @@ async fn build_client(timeout: u64, proxy: Option<(String, u16)>) -> reqwest::Re
 }
 
 /// Build a new request with timeout and proxy and return the response
-async fn build_client_get(url: &str, timeout: u64, proxy: Option<(String, u16)>) -> Result<String> {
+async fn build_client_get(
+    url: &str,
+    timeout: u64,
+    proxy: &Option<(String, u16)>,
+) -> Result<String> {
     let client = build_client(timeout, proxy)
         .await
         .or_else(|e| Err(GlobalIpError::ReqwestError(e)))?;
@@ -190,7 +194,7 @@ make_new! {ProviderPlain}
 #[async_trait]
 impl Provider for ProviderPlain {
     async fn get_addr(&self) -> Result<IpAddr> {
-        let addr = build_client_get(&self.info.url, self.timeout, self.proxy).await?;
+        let addr = build_client_get(&self.info.url, self.timeout, &self.proxy).await?;
         create_ipaddr(&addr, self.info.addr_type)
     }
 
@@ -206,21 +210,21 @@ make_new! {ProviderJson}
 #[async_trait]
 impl Provider for ProviderJson {
     async fn get_addr(&self) -> Result<IpAddr> {
-        let resp = build_client_get(&self.info.url, self.timeout, self.proxy).await?;
+        let resp = build_client_get(&self.info.url, self.timeout, &self.proxy).await?;
         // Try to parse the response as JSON
         let json: Value =
             serde_json::from_str(&resp).or_else(|e| Err(GlobalIpError::JsonParseError(e)))?;
+        let key = self
+            .info
+            .key
+            .clone()
+            .expect("`key' should exist for JSON providers");
         // Extract ip from response
         let addr = json
-            .get(
-                &self
-                    .info
-                    .key
-                    .expect("`key' should exist for JSON providers"),
-            )
-            .ok_or_else(|| GlobalIpError::JsonNotFoundError(self.info.key.unwrap()))?
+            .get(&key)
+            .ok_or_else(|| GlobalIpError::JsonNotFoundError(key.clone()))?
             .as_str()
-            .ok_or_else(|| GlobalIpError::JsonDecodeError(self.info.key.unwrap()))?;
+            .ok_or_else(|| GlobalIpError::JsonDecodeError(key))?;
         create_ipaddr(&addr, self.info.addr_type)
     }
 
@@ -316,7 +320,7 @@ impl Default for ProviderMultiple {
 
 impl ProviderMultiple {
     /// A default IPv6 provider
-    fn default_v6() -> Self {
+    pub fn default_v6() -> Self {
         Self {
             addr_type: IpType::Ipv6,
             ..Default::default()
@@ -327,18 +331,22 @@ impl ProviderMultiple {
 #[async_trait]
 impl Provider for ProviderMultiple {
     async fn get_addr(&self) -> Result<IpAddr> {
-        let result: Result<IpAddr> = Err(crate::Error::NoAddress);
-        for info in self.providers {
+        let mut result: Result<IpAddr> = Err(crate::Error::NoAddress);
+        for info in &self.providers {
             let this_result = match info.method {
                 ProviderMethod::Plain => {
-                    ProviderPlain::new(info, self.timeout, self.proxy).get_addr()
+                    let provider = ProviderPlain::new(info, self.timeout, &self.proxy);
+                    provider.get_addr().await
                 }
                 ProviderMethod::Json => {
-                    ProviderJson::new(info, self.timeout, self.proxy).get_addr()
+                    let provider = ProviderJson::new(info, self.timeout, &self.proxy);
+                    provider.get_addr().await
                 }
-                ProviderMethod::Dns => ProviderDns::new(info, self.timeout, self.proxy).get_addr(),
-            }
-            .await;
+                ProviderMethod::Dns => {
+                    let provider = ProviderDns::new(info, self.timeout, &self.proxy);
+                    provider.get_addr().await
+                }
+            };
             if this_result.is_ok() {
                 result = this_result;
                 break;

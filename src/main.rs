@@ -19,7 +19,6 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 extern crate futures;
-extern crate gip;
 extern crate log;
 extern crate pnet;
 extern crate reqwest;
@@ -33,8 +32,8 @@ extern crate toml;
 
 mod api;
 mod config;
-mod ip;
 
+use getip::{get_ip, IpScope, IpType};
 use log::{debug, error, info};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use std::collections::HashMap;
@@ -186,19 +185,19 @@ impl<'a> App<'a> {
     async fn get_ip_by_item(
         &self,
         item: &config::NameComConfigRecord,
-    ) -> Result<IpAddr, ip::Error> {
+    ) -> Result<IpAddr, getip::Error> {
         match (item.rec_type, item.method) {
             (api::RecordType::A, config::NameComConfigMethod::Global) => {
-                ip::get_ip(ip::IpType::GlobalIpv4, None)
+                get_ip(IpType::Ipv4, IpScope::Global, None).await
             }
             (api::RecordType::Aaaa, config::NameComConfigMethod::Global) => {
-                ip::get_ip(ip::IpType::GlobalIpv6, None)
+                get_ip(IpType::Ipv6, IpScope::Global, None).await
             }
             (api::RecordType::A, config::NameComConfigMethod::Local) => {
-                ip::get_ip(ip::IpType::LocalIpv4, Some(&item.interface))
+                get_ip(IpType::Ipv4, IpScope::Local, Some(&item.interface)).await
             }
             (api::RecordType::Aaaa, config::NameComConfigMethod::Local) => {
-                ip::get_ip(ip::IpType::LocalIpv6, Some(&item.interface))
+                get_ip(IpType::Ipv6, IpScope::Local, Some(&item.interface)).await
             }
             _ => panic!(
                 "Record type {} is not one of \"A\" and \"AAAA\"",

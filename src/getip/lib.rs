@@ -71,3 +71,25 @@ pub trait Provider: Sized {
     async fn get_addr(&self) -> Result<IpAddr>;
     fn get_type(&self) -> IpType;
 }
+
+/// Receive a IP address with the specified type.
+///
+/// ip_type: Type of the IP address.
+/// nic: Name of the interface, Ignored if ip_type is Global
+pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Result<IpAddr> {
+    match (ip_type, ip_scope) {
+        (IpType::Ipv4, IpScope::Global) => {
+            // Get a global IPv4 address
+            let p = gip::ProviderMultiple::default();
+            p.get_addr().await
+        }
+        (IpType::Ipv6, IpScope::Global) => {
+            // Get a global IPv6 address
+            let p = gip::ProviderMultiple::default_v6();
+            // TODO: An local address is likely global in the case of IPv6 as well
+            p.get_addr().await
+        }
+        (IpType::Ipv4, IpScope::Local) => hostip::get_local_ipv4(nic).await,
+        (IpType::Ipv6, IpScope::Local) => hostip::get_local_ipv6(nic).await,
+    }
+}
