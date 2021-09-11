@@ -1,5 +1,3 @@
-extern crate async_trait;
-extern crate derive_deref;
 /// Asynchronous library for retrieving IP address information
 //
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
@@ -18,6 +16,8 @@ extern crate derive_deref;
 //
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
+extern crate async_trait;
+extern crate derive_deref;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
@@ -91,5 +91,66 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
         }
         (IpType::Ipv4, IpScope::Local) => hostip::get_local_ipv4(nic).await,
         (IpType::Ipv6, IpScope::Local) => hostip::get_local_ipv6(nic).await,
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{get_ip, IpScope, IpType};
+    use std::net::IpAddr;
+
+    #[tokio::test]
+    async fn test_global_ipv4_is_any() {
+        let addr = get_ip(IpType::Ipv4, IpScope::Global, None).await;
+        assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
+        if let IpAddr::V4(addr) = addr.unwrap() {
+            assert!(
+                !addr.is_private(),
+                "The result of get_addr() should not be private"
+            );
+            assert!(
+                !addr.is_loopback(),
+                "The result of get_addr() should not be loopback"
+            );
+        } else {
+            assert!(false, "The result of get_addr() should be an IPv4 address");
+        }
+    }
+
+    #[tokio::test]
+    // #[allow_fail]
+    async fn test_global_ipv6_is_any() {
+        let addr = get_ip(IpType::Ipv6, IpScope::Global, None).await;
+        assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
+        if let IpAddr::V6(addr) = addr.unwrap() {
+            assert!(
+                !addr.is_loopback(),
+                "The result of get_addr() should not be loopback"
+            );
+            assert!(
+                !addr.is_unspecified(),
+                "The result of get_addr() should not be unspecified"
+            );
+        } else {
+            assert!(false, "The result of get_addr() should be an IPv4 address");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_local_ipv4_is_any() {
+        let addr = get_ip(IpType::Ipv4, IpScope::Local, None).await;
+        assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
+        if !addr.unwrap().is_ipv4() {
+            assert!(false, "The result of get_addr() should be an IPv4 address");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_local_ipv6_is_any() {
+        let addr = get_ip(IpType::Ipv6, IpScope::Local, None).await;
+        assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
+        if !addr.unwrap().is_ipv6() {
+            assert!(false, "The result of get_addr() should be an IPv4 address");
+        }
     }
 }

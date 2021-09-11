@@ -176,12 +176,12 @@ async fn build_client_get(
 /// Create a getip::Result containing the IP address
 fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
     Ok(match addr_type {
-        IpType::Ipv4 => IpAddr::V4(
-            Ipv4Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?,
-        ),
-        IpType::Ipv6 => IpAddr::V6(
-            Ipv6Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?,
-        ),
+        IpType::Ipv4 => {
+            IpAddr::V4(Ipv4Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?)
+        }
+        IpType::Ipv6 => {
+            IpAddr::V6(Ipv6Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?)
+        }
     })
 }
 
@@ -212,8 +212,7 @@ impl Provider for ProviderJson {
     async fn get_addr(&self) -> Result<IpAddr> {
         let resp = build_client_get(&self.info.url, self.timeout, &self.proxy).await?;
         // Try to parse the response as JSON
-        let json: Value =
-            serde_json::from_str(&resp).map_err(GlobalIpError::JsonParseError)?;
+        let json: Value = serde_json::from_str(&resp).map_err(GlobalIpError::JsonParseError)?;
         let key = self
             .info
             .key
@@ -287,8 +286,8 @@ impl Provider for ProviderDns {
         let mut config = ResolverConfig::new();
         config.add_name_server(ns);
         // Create new resolver
-        let resolver =
-            TokioAsyncResolver::tokio(config, opts).map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
+        let resolver = TokioAsyncResolver::tokio(config, opts)
+            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
         let addr = host_to_addr(resolver, query, self.info.addr_type)
             .await
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?
