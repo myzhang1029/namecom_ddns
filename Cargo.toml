@@ -1,16 +1,20 @@
 [package]
 name = "namecom_ddns"
+description = "Name.com DNS Updater"
+authors = ["Zhang Maiyun <myzhang1029@hotmail.com>", "dalance <dalance@gmail.com>"]
+license = "AGPL-3.0-or-later"
 version = "0.1.2"
-authors = ["Zhang Maiyun <myzhang1029@hotmail.com>"]
+readme = "README.md"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+async-trait = "0.1"
+chrono = "0.4"
+derive_deref = "1.1"
 futures = "0.3"
-gip = "0.7"
 log = "0.4"
 pnet = "0.28"
+rand = "0.8"
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -19,5 +23,14 @@ strum = { version = "0.21", features = ["derive"] }
 strum_macros = "0.21"
 subprocess = "0.2.0"
 thiserror = "1.0"
-tokio = { version = "1.10", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.10", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
 toml = "0.5"
+trust-dns-resolver = "0.20"
+
+[lib]
+name = "getip"
+path = "src/getip/lib.rs"
+
+[[bin]]
+name = "namecom_ddns"
+path = "src/main.rs"
