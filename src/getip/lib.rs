@@ -97,7 +97,48 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
 #[cfg(test)]
 mod test {
     use crate::{get_ip, IpScope, IpType};
+    use pnet::datalink::interfaces;
     use std::net::IpAddr;
+
+    /// Test if any IPv6 address is available on an interface
+    /// If not, the test is skipped
+    fn has_any_ipv6_address(iface_name: Option<&str>, global: bool) -> bool {
+        for iface in interfaces() {
+            // If iface_name is present but does not match, skip
+            if let Some(iface_name) = iface_name {
+                if iface.name != iface_name {
+                    continue;
+                }
+            }
+            let anyone = iface
+                .ips
+                .iter()
+                .filter(|nw| {
+                    let ip = nw.ip();
+                    ip.is_ipv6()
+                        && !ip.is_loopback()
+                        && !ip.is_unspecified()
+                        && if global {
+                            if let IpAddr::V6(dcasted) = ip {
+                                // !is_unicast_link_local
+                                (dcasted.segments()[0] & 0xffc0) != 0xfe80
+                                // !is_unique_local
+                                && (dcasted.segments()[0] & 0xfe00) != 0xfc00
+                            } else {
+                                unreachable!()
+                            }
+                        } else {
+                            true
+                        }
+                })
+                .next()
+                .is_some();
+            if anyone {
+                return true;
+            }
+        }
+        false
+    }
 
     #[tokio::test]
     async fn test_global_ipv4_is_any() {
@@ -118,7 +159,6 @@ mod test {
     }
 
     #[tokio::test]
-    // #[allow_fail]
     async fn test_global_ipv6_is_any() {
         let addr = get_ip(IpType::Ipv6, IpScope::Global, None).await;
         assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
@@ -132,7 +172,9 @@ mod test {
                 "The result of get_addr() should not be unspecified"
             );
         } else {
-            assert!(false, "The result of get_addr() should be an IPv4 address");
+            if has_any_ipv6_address(None, true) {
+                assert!(false, "The result of get_addr() should be an IPv6 address");
+            }
         }
     }
 
@@ -150,7 +192,9 @@ mod test {
         let addr = get_ip(IpType::Ipv6, IpScope::Local, None).await;
         assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
         if !addr.unwrap().is_ipv6() {
-            assert!(false, "The result of get_addr() should be an IPv4 address");
+            if has_any_ipv6_address(None, false) {
+                assert!(false, "The result of get_addr() should be an IPv6 address");
+            }
         }
     }
 }

@@ -22,6 +22,7 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
+use std::path::Path;
 
 /// Account spec
 #[derive(Debug, Deserialize)]
@@ -78,10 +79,60 @@ pub struct NameComDdnsConfig {
 }
 
 impl NameComDdnsConfig {
-    pub fn from_file(path: &str) -> io::Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let mut file = File::open(path)?;
         let mut file_content = String::new();
         file.read_to_string(&mut file_content)?;
         Ok(toml::from_str(&file_content)?)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::api::RecordType;
+    use crate::config::{NameComConfigMethod, NameComDdnsConfig};
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_config_parser() {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("examples/namecom_ddns.toml");
+        let config = NameComDdnsConfig::from_file(&path).expect("Cannot open example file");
+        let core = config.core;
+        let record1 = &config.records[0];
+        let record2 = &config.records[1];
+        // Set values
+        assert_eq!(core.username, "example", "core.username mismatch");
+        assert_eq!(core.key, "40-char Name.com API key", "core.key mismatch");
+        // Default values
+        assert_eq!(core.url, "https://api.name.com/", "core.url mismatch");
+        assert_eq!(core.timeout, 30, "core.timeout mismatch");
+        assert_eq!(core.interval, 60, "core.interval mismatch");
+        // Record 1
+        assert_eq!(record1.host, "ddns", "record[0].host mismatch");
+        assert_eq!(record1.zone, "example.com", "record[0].zone mismatch");
+        assert_eq!(record1.rec_type, RecordType::A, "record[0].type mismatch");
+        assert_eq!(record1.ttl, 300, "record[0].ttl mismatch");
+        assert_eq!(
+            record1.method,
+            NameComConfigMethod::Global,
+            "record[0].method mismatch"
+        );
+        assert_eq!(record1.interface, "en0", "record[0].interface mismatch");
+        // Record 2
+        assert_eq!(record2.host, "ddns", "record[0].host mismatch");
+        assert_eq!(record2.zone, "example.com", "record[0].zone mismatch");
+        assert_eq!(
+            record2.rec_type,
+            RecordType::Aaaa,
+            "record[0].type mismatch"
+        );
+        assert_eq!(record2.ttl, 300, "record[0].ttl mismatch");
+        assert_eq!(
+            record2.method,
+            NameComConfigMethod::Local,
+            "record[0].method mismatch"
+        );
+        assert_eq!(record2.interface, "en0", "record[0].interface mismatch");
     }
 }
