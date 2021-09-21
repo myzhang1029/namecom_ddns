@@ -334,6 +334,9 @@ impl Provider for ProviderMultiple {
     async fn get_addr(&self) -> Result<IpAddr> {
         let mut result: Result<IpAddr> = Err(crate::Error::NoAddress);
         for info in &self.providers {
+            if info.addr_type != self.addr_type {
+                continue;
+            }
             let this_result = match info.method {
                 ProviderMethod::Plain => {
                     let provider = ProviderPlain::new(info, self.timeout, &self.proxy);

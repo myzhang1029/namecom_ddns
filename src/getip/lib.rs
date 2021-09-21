@@ -163,6 +163,9 @@ mod test {
 
     #[tokio::test]
     async fn test_global_ipv6_is_any() {
+        if !has_any_ipv6_address(None, true) {
+            return;
+        }
         let addr = get_ip(IpType::Ipv6, IpScope::Global, None).await;
         assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
         if let IpAddr::V6(addr) = addr.unwrap() {
@@ -175,9 +178,7 @@ mod test {
                 "The result of get_addr() should not be unspecified"
             );
         } else {
-            if has_any_ipv6_address(None, true) {
-                assert!(false, "The result of get_addr() should be an IPv6 address");
-            }
+            assert!(false, "The result of get_addr() should be an IPv6 address");
         }
     }
 
@@ -192,12 +193,13 @@ mod test {
 
     #[tokio::test]
     async fn test_local_ipv6_is_any() {
+        if !has_any_ipv6_address(None, true) {
+            return;
+        }
         let addr = get_ip(IpType::Ipv6, IpScope::Local, None).await;
         assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
         if !addr.unwrap().is_ipv6() {
-            if has_any_ipv6_address(None, false) {
-                assert!(false, "The result of get_addr() should be an IPv6 address");
-            }
+            assert!(false, "The result of get_addr() should be an IPv6 address");
         }
     }
 }
