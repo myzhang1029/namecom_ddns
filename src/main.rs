@@ -20,13 +20,10 @@
 //
 extern crate futures;
 extern crate log;
-extern crate pnet;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 extern crate simplelog;
-extern crate subprocess;
-extern crate thiserror;
 extern crate tokio;
 extern crate toml;
 

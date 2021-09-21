@@ -18,10 +18,13 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 extern crate async_trait;
 extern crate derive_deref;
+extern crate log;
+extern crate pnet;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 extern crate thiserror;
+extern crate tokio;
 extern crate trust_dns_resolver;
 
 pub mod gip;
