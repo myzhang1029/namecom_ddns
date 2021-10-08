@@ -80,14 +80,13 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> std::result::Result<Output, Ip
             Ok(output) => {
                 if output.status.success() {
                     return Ok(output);
-                } else {
-                    // Since a chain of commands are executed, these are not really errors
-                    debug!(
-                        "Command {:?} failed with status: {}",
-                        command, output.status
-                    );
-                    last_error = Some(IpCommandError::NonZeroExit(output.status));
                 }
+                // Since a chain of commands are executed, these are not really errors
+                debug!(
+                    "Command {:?} failed with status: {}",
+                    command, output.status
+                );
+                last_error = Some(IpCommandError::NonZeroExit(output.status));
             }
             Err(exec_error) => {
                 debug!(
@@ -119,7 +118,10 @@ async fn get_ipv6_ifconfig_ip(
     // Extract addresses line by line
     for line in out_br {
         let line = String::from_utf8(line.to_vec())?;
-        let fields: Vec<String> = line.split_whitespace().map(|x| x.to_string()).collect();
+        let fields: Vec<String> = line
+            .split_whitespace()
+            .map(std::string::ToString::to_string)
+            .collect();
         // A shorter one is certainly not an entry
         // Check if the label is "inet6"
         if fields.len() > 1 && fields[0] == "inet6" {
@@ -178,102 +180,88 @@ macro_rules! cast_ipv6 {
 
 /// Get a local IPv4 address on the specified interface.
 pub async fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
-    match nic {
-        // Interface specified
-        Some(iface) => {
-            let ips = get_iface_ips(iface);
-            // Get the first IPv4 network on this interface
-            let first_ipv4 = ips.iter().find(|addr| addr.is_ipv4());
-            // Return the first address in the network
-            if let Some(network) = first_ipv4 {
-                Ok(network.ip())
-            } else {
-                Err(crate::Error::NoAddress)
-            }
-        }
-        None => {
-            // No interface specified, iterate to find the first one with IPv4 addresses (and preferably a configured one)
-            let ifaces = interfaces();
-            let ipv4_addrs: Vec<IpAddr> = ifaces
-                .iter()
-                // Filter out non-v4 addresses
-                .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv4()))
-                // Remove loopback, link local, and unspecified
-                .filter_map(|nw| {
-                    // Turn networks into addresses
-                    let addr = nw.ip();
-                    if addr.is_loopback()
-                        || cast_ipv4!(addr).is_link_local()
-                        || addr.is_unspecified()
-                    {
-                        None
-                    } else {
-                        Some(addr)
-                    }
-                })
-                // Must be collected to use it twice
-                .collect();
-            // Find the ones that are likely global
-            // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
-            let non_local_addrs: Vec<&IpAddr> = ipv4_addrs
-                .iter()
-                .filter(|addr| !cast_ipv4!(addr).is_private())
-                .collect();
-            if !non_local_addrs.is_empty() {
-                Ok(*non_local_addrs[0])
-            } else if !ipv4_addrs.is_empty() {
-                Ok(ipv4_addrs[0])
-            } else {
-                Err(crate::Error::NoAddress)
-            }
+    if let Some(iface) = nic {
+        let ips = get_iface_ips(iface);
+        // Get the first IPv4 network on this interface
+        let first_ipv4 = ips.iter().find(|addr| addr.is_ipv4());
+        // Return the first address in the network
+        first_ipv4.map_or(Err(crate::Error::NoAddress), |network| Ok(network.ip()))
+    } else {
+        // No interface specified, iterate to find the first one with IPv4 addresses (and preferably a configured one)
+        let ifaces = interfaces();
+        let ipv4_addrs: Vec<IpAddr> = ifaces
+            .iter()
+            // Filter out non-v4 addresses
+            .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv4()))
+            // Remove loopback, link local, and unspecified
+            .filter_map(|nw| {
+                // Turn networks into addresses
+                let addr = nw.ip();
+                if addr.is_loopback() || cast_ipv4!(addr).is_link_local() || addr.is_unspecified() {
+                    None
+                } else {
+                    Some(addr)
+                }
+            })
+            // Must be collected to use it twice
+            .collect();
+        // Find the ones that are likely global
+        // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
+        let non_local_addrs: Vec<&IpAddr> = ipv4_addrs
+            .iter()
+            .filter(|addr| !cast_ipv4!(addr).is_private())
+            .collect();
+        if !non_local_addrs.is_empty() {
+            Ok(*non_local_addrs[0])
+        } else if ipv4_addrs.is_empty() {
+            Err(crate::Error::NoAddress)
+        } else {
+            Ok(ipv4_addrs[0])
         }
     }
 }
 
 /// Get a local IPv6 address on the specified interface.
 pub async fn get_local_ipv6(nic: Option<&str>) -> Result<IpAddr> {
-    match nic {
-        Some(nic) => {
-            get_ipv6_ifconfig_ip(nic, true).await.unwrap_or_else(|_| {
-                // TODO: pnet and ipconfig.exe IPv6 backend
-                unimplemented!()
+    if let Some(nic) = nic {
+        get_ipv6_ifconfig_ip(nic, true).await.unwrap_or(
+            // TODO: ipconfig.exe IPv6 backend
+            Err(crate::Error::NoAddress),
+        )
+    } else {
+        // No interface specified, iterate to find the first one with IPv6 addresses (and preferably a configured one)
+        let ifaces = interfaces();
+        let ipv6_addrs: Vec<IpAddr> = ifaces
+            .iter()
+            // Filter out non-v6 addresses
+            .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv6()))
+            // Remove loopback, link local, and unspecified
+            .filter_map(|nw| {
+                // Turn networks into addresses
+                let addr = nw.ip();
+                if addr.is_loopback()
+                    || addr.is_unspecified()
+                    || (cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
+                {
+                    None
+                } else {
+                    Some(addr)
+                }
             })
-        }
-        None => {
-            // No interface specified, iterate to find the first one with IPv6 addresses (and preferably a configured one)
-            let ifaces = interfaces();
-            let ipv6_addrs: Vec<IpAddr> = ifaces
-                .iter()
-                // Filter out non-v6 addresses
-                .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv6()))
-                // Remove loopback, link local, and unspecified
-                .filter_map(|nw| {
-                    // Turn networks into addresses
-                    let addr = nw.ip();
-                    if addr.is_loopback()
-                        || addr.is_unspecified()
-                        || (cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
-                    {
-                        None
-                    } else {
-                        Some(addr)
-                    }
-                })
-                // Must be collected to use it twice
-                .collect();
-            // Find the ones that are likely global
-            // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
-            let non_local_addrs: Vec<&IpAddr> = ipv6_addrs
-                .iter()
-                // .filter(|addr| !cast_ipv6!(addr).is_private())
-                .collect();
-            if !non_local_addrs.is_empty() {
-                Ok(*non_local_addrs[0])
-            } else if !ipv6_addrs.is_empty() {
-                Ok(ipv6_addrs[0])
-            } else {
-                Err(crate::Error::NoAddress)
-            }
+            // Must be collected to use it twice
+            .collect();
+        // Find the ones that are likely global
+        // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
+        let non_local_addrs: Vec<&IpAddr> = ipv6_addrs
+            .iter()
+            // .filter(|addr| !cast_ipv6!(addr).is_private())
+            .collect();
+        if !non_local_addrs.is_empty() {
+            Ok(*non_local_addrs[0])
+        } else if ipv6_addrs.is_empty() {
+            Err(crate::Error::NoAddress)
+        } else {
+            Ok(ipv6_addrs[0])
         }
     }
 }

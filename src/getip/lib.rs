@@ -77,8 +77,8 @@ pub trait Provider: Sized {
 
 /// Receive a IP address with the specified type.
 ///
-/// ip_type: Type of the IP address.
-/// nic: Name of the interface, Ignored if ip_type is Global
+/// `ip_type`: Type of the IP address.
+/// `nic`: Name of the interface, Ignored if `ip_type` is Global
 pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Result<IpAddr> {
     match (ip_type, ip_scope) {
         (IpType::Ipv4, IpScope::Global) => {

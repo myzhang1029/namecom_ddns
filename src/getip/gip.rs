@@ -137,7 +137,7 @@ impl Default for AbstractProvider {
 }
 
 /// Build a new request client with timeout and proxy
-async fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<Client> {
+fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<Client> {
     let client = match (timeout, proxy) {
         (0, None) => Client::new(),
         (0, Some((host, port))) => Client::builder()
@@ -160,9 +160,7 @@ async fn build_client_get(
     timeout: u64,
     proxy: &Option<(String, u16)>,
 ) -> Result<String> {
-    let client = build_client(timeout, proxy)
-        .await
-        .map_err(GlobalIpError::ReqwestError)?;
+    let client = build_client(timeout, proxy).map_err(GlobalIpError::ReqwestError)?;
     Ok(client
         .get(url)
         .send()
@@ -173,7 +171,7 @@ async fn build_client_get(
         .map_err(GlobalIpError::ReqwestError)?)
 }
 
-/// Create a getip::Result containing the IP address
+/// Create a `getip::Result` containing the IP address
 fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
     Ok(match addr_type {
         IpType::Ipv4 => {
@@ -264,7 +262,7 @@ impl Provider for ProviderDns {
             .expect("DNS Provider URL should be like query@server");
         let opts = ResolverOpts {
             timeout: Duration::from_millis(self.timeout),
-            ..Default::default()
+            ..ResolverOpts::default()
         };
         // First get the address of the DNS server
         let resolver = TokioAsyncResolver::tokio(ResolverConfig::new(), opts)
@@ -324,7 +322,7 @@ impl ProviderMultiple {
     pub fn default_v6() -> Self {
         Self {
             addr_type: IpType::Ipv6,
-            ..Default::default()
+            ..ProviderMultiple::default()
         }
     }
 }
