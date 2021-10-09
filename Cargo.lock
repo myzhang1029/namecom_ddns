@@ -512,6 +512,7 @@ dependencies = [
  "tokio",
  "toml",
  "trust-dns-resolver",
+ "winapi",
 ]
 
 [[package]]

@@ -24,6 +24,9 @@ tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "sy
 toml = "0.5"
 trust-dns-resolver = "0.20"
 
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3"
+
 [lib]
 name = "getip"
 path = "src/getip/lib.rs"

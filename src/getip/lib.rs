@@ -26,6 +26,8 @@ extern crate serde_json;
 extern crate thiserror;
 extern crate tokio;
 extern crate trust_dns_resolver;
+#[cfg(windows)]
+extern crate winapi;
 
 pub mod gip;
 pub mod hostip;
