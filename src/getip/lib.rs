@@ -18,8 +18,8 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 extern crate async_trait;
 extern crate derive_deref;
+extern crate libc;
 extern crate log;
-extern crate pnet;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
@@ -29,6 +29,7 @@ extern crate trust_dns_resolver;
 
 pub mod gip;
 pub mod hostip;
+pub mod libc_getips;
 
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -58,8 +59,22 @@ pub enum IpType {
 pub enum Error {
     #[error(transparent)]
     GlobalIpError(#[from] crate::gip::GlobalIpError),
+
     #[error(transparent)]
-    HelperError(#[from] crate::hostip::IpCommandError),
+    AddrParseError(#[from] std::net::AddrParseError),
+
+    #[error(transparent)]
+    UnicodeParseError(#[from] std::string::FromUtf8Error),
+
+    /// Command exited with a non-zero status
+    #[error("Command exited with status {0}")]
+    NonZeroExit(std::process::ExitStatus),
+
+    /// All libc-related errors
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
+    /// No address found
     #[error("no address returned")]
     NoAddress,
 }
@@ -92,41 +107,31 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
             // TODO: An local address is likely global in the case of IPv6 as well
             p.get_addr().await
         }
-        (IpType::Ipv4, IpScope::Local) => hostip::get_local_ipv4(nic).await,
+        (IpType::Ipv4, IpScope::Local) => hostip::get_local_ipv4(nic),
         (IpType::Ipv6, IpScope::Local) => hostip::get_local_ipv6(nic).await,
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{get_ip, IpScope, IpType};
-    use pnet::datalink::interfaces;
+    use crate::{get_ip, libc_getips, IpScope, IpType};
     use std::net::IpAddr;
 
     /// Test if any IPv6 address is available on an interface
     /// If not, the test is skipped
     fn has_any_ipv6_address(iface_name: Option<&str>, global: bool) -> bool {
-        for iface in interfaces() {
-            // If iface_name is present but does not match, skip
-            if let Some(iface_name) = iface_name {
-                if iface.name != iface_name {
-                    continue;
-                }
-            }
-            let anyone = iface
-                .ips
+        if let Ok(addresses) = libc_getips::get_iface_addrs(Some(IpType::Ipv6), iface_name) {
+            addresses
                 .iter()
-                .filter(|nw| {
-                    let ip = nw.ip();
-                    ip.is_ipv6()
-                        && !ip.is_loopback()
+                .filter(|ip| {
+                    !ip.is_loopback()
                         && !ip.is_unspecified()
                         && if global {
                             if let IpAddr::V6(dcasted) = ip {
                                 // !is_unicast_link_local
                                 (dcasted.segments()[0] & 0xffc0) != 0xfe80
-                                // !is_unique_local
-                                && (dcasted.segments()[0] & 0xfe00) != 0xfc00
+                                    // !is_unique_local
+                                    && (dcasted.segments()[0] & 0xfe00) != 0xfc00
                             } else {
                                 unreachable!()
                             }
@@ -135,12 +140,10 @@ mod test {
                         }
                 })
                 .next()
-                .is_some();
-            if anyone {
-                return true;
-            }
+                .is_some()
+        } else {
+            false
         }
-        false
     }
 
     #[tokio::test]

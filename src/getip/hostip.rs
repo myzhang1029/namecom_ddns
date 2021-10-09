@@ -18,43 +18,16 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-use crate::Result;
+use crate::libc_getips::get_iface_addrs;
+use crate::{Error, IpType, Result};
 use log::{debug, info};
-use pnet::datalink::interfaces;
-use pnet::ipnetwork::IpNetwork;
-use std::io;
 use std::net::IpAddr;
-use std::process::{self, Output, Stdio};
+use std::process::{Output, Stdio};
 use std::str::FromStr;
-use thiserror::Error;
 use tokio::process::Command;
 
-/// A error indicating the failure of ip/ifconfig commands
-#[derive(Debug, Error)]
-pub enum IpCommandError {
-    /// Command exited with a non-zero status
-    #[error("Command exited with status {0}")]
-    NonZeroExit(process::ExitStatus),
-    /// Failed to start the command
-    #[error(transparent)]
-    StartCommandFailure(#[from] io::Error),
-    /// Command stdout not UTF-8
-    #[error(transparent)]
-    DecodeError(#[from] std::string::FromUtf8Error),
-}
-
-/// Get the networks on the interface with the specified name.
-fn get_iface_ips(iface_name: &str) -> Vec<IpNetwork> {
-    for iface in interfaces() {
-        if iface.name == iface_name {
-            return iface.ips;
-        }
-    }
-    vec![]
-}
-
 /// Run a chain of ip/ifconfig commands and returns the output of first succeeded one
-async fn chain_ip_cmd_until_succeed(nic: &str) -> std::result::Result<Output, IpCommandError> {
+async fn chain_ip_cmd_until_succeed(nic: &str) -> Result<Output> {
     let commands = [
         // First try to use `ip`
         (
@@ -70,8 +43,8 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> std::result::Result<Output, Ip
         // Linux ifconfig cannot distinguish between RFC 3041 temporary/permanent addresses
         ("ifconfig", vec![nic]),
     ];
-    // Record all failures
-    let mut last_error: Option<IpCommandError> = None;
+    // Record only the last failure
+    let mut last_error: Option<Error> = None;
     for (cmd, args) in commands {
         let mut command = Command::new(cmd);
         command.stdout(Stdio::piped());
@@ -86,14 +59,14 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> std::result::Result<Output, Ip
                     "Command {:?} failed with status: {}",
                     command, output.status
                 );
-                last_error = Some(IpCommandError::NonZeroExit(output.status));
+                last_error = Some(Error::NonZeroExit(output.status));
             }
             Err(exec_error) => {
                 debug!(
                     "Command {:?} failed to be executed: {}",
                     command, exec_error
                 );
-                last_error = Some(IpCommandError::StartCommandFailure(exec_error));
+                last_error = Some(Error::IoError(exec_error));
             }
         }
     }
@@ -103,12 +76,10 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> std::result::Result<Output, Ip
 }
 
 /// Try to get a IPv6 address from a interface with `ifconfig` or `ip` if possible.
-/// Two Results are used to indicate a "determining error", with which no other
-/// backends will be tried, or simply an error with the current IP backend.
-async fn get_ipv6_ifconfig_ip(
-    nic: &str,
-    permanent: bool,
-) -> std::result::Result<Result<IpAddr>, IpCommandError> {
+/// Two Results are used to indicate a "determining error":
+/// if the outer Result is an Err variant, it indicates an error with the current IP backend.
+/// But if the inner Result is an Err variant, no other backends will be tried.
+async fn get_ipv6_ifconfig_ip(nic: &str, permanent: bool) -> Result<Result<IpAddr>> {
     let out = chain_ip_cmd_until_succeed(nic).await?;
     // Extract output
     let out_br = out.stdout.split(|c| *c == b'\n');
@@ -179,89 +150,50 @@ macro_rules! cast_ipv6 {
 }
 
 /// Get a local IPv4 address on the specified interface.
-pub async fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
-    if let Some(iface) = nic {
-        let ips = get_iface_ips(iface);
-        // Get the first IPv4 network on this interface
-        let first_ipv4 = ips.iter().find(|addr| addr.is_ipv4());
-        // Return the first address in the network
-        first_ipv4.map_or(Err(crate::Error::NoAddress), |network| Ok(network.ip()))
+pub fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
+    let ipv4_addrs = get_iface_addrs(Some(IpType::Ipv4), nic)?;
+    let ipv4_addrs: Vec<&IpAddr> = ipv4_addrs
+        .iter()
+        // Remove loopback, link local, and unspecified
+        .filter(|addr| {
+            !addr.is_loopback() && !cast_ipv4!(addr).is_link_local() && !addr.is_unspecified()
+        })
+        .collect();
+    if ipv4_addrs.is_empty() {
+        Err(Error::NoAddress)
     } else {
-        // No interface specified, iterate to find the first one with IPv4 addresses (and preferably a configured one)
-        let ifaces = interfaces();
-        let ipv4_addrs: Vec<IpAddr> = ifaces
+        // Prefer the ones that are likely global
+        // XXX: `IpAddr::is_global` is probably a better choice but it's currently unstable.
+        let first_non_local_addr: Option<&&IpAddr> = ipv4_addrs
             .iter()
-            // Filter out non-v4 addresses
-            .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv4()))
-            // Remove loopback, link local, and unspecified
-            .filter_map(|nw| {
-                // Turn networks into addresses
-                let addr = nw.ip();
-                if addr.is_loopback() || cast_ipv4!(addr).is_link_local() || addr.is_unspecified() {
-                    None
-                } else {
-                    Some(addr)
-                }
-            })
-            // Must be collected to use it twice
-            .collect();
-        // Find the ones that are likely global
-        // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
-        let non_local_addrs: Vec<&IpAddr> = ipv4_addrs
-            .iter()
-            .filter(|addr| !cast_ipv4!(addr).is_private())
-            .collect();
-        if !non_local_addrs.is_empty() {
-            Ok(*non_local_addrs[0])
-        } else if ipv4_addrs.is_empty() {
-            Err(crate::Error::NoAddress)
-        } else {
-            Ok(ipv4_addrs[0])
-        }
+            .find(|addr| !cast_ipv4!(addr).is_private());
+        first_non_local_addr.map_or_else(|| Ok(*ipv4_addrs[0]), |addr| Ok(**addr))
     }
 }
 
 /// Get a local IPv6 address on the specified interface.
 pub async fn get_local_ipv6(nic: Option<&str>) -> Result<IpAddr> {
     if let Some(nic) = nic {
-        get_ipv6_ifconfig_ip(nic, true).await.unwrap_or(
+        if let Ok(command_result) = get_ipv6_ifconfig_ip(nic, true).await {
             // TODO: ipconfig.exe IPv6 backend
-            Err(crate::Error::NoAddress),
-        )
-    } else {
-        // No interface specified, iterate to find the first one with IPv6 addresses (and preferably a configured one)
-        let ifaces = interfaces();
-        let ipv6_addrs: Vec<IpAddr> = ifaces
-            .iter()
-            // Filter out non-v6 addresses
-            .flat_map(|iface| iface.ips.iter().filter(|nw| nw.is_ipv6()))
-            // Remove loopback, link local, and unspecified
-            .filter_map(|nw| {
-                // Turn networks into addresses
-                let addr = nw.ip();
-                if addr.is_loopback()
-                    || addr.is_unspecified()
-                    || (cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
-                {
-                    None
-                } else {
-                    Some(addr)
-                }
-            })
-            // Must be collected to use it twice
-            .collect();
-        // Find the ones that are likely global
-        // XXX: IpAddr::is_global is probably a better choice but it's currently unstable.
-        let non_local_addrs: Vec<&IpAddr> = ipv6_addrs
-            .iter()
-            // .filter(|addr| !cast_ipv6!(addr).is_private())
-            .collect();
-        if !non_local_addrs.is_empty() {
-            Ok(*non_local_addrs[0])
-        } else if ipv6_addrs.is_empty() {
-            Err(crate::Error::NoAddress)
-        } else {
-            Ok(ipv6_addrs[0])
+            return command_result;
         }
+    };
+    let ipv6_addrs = get_iface_addrs(Some(IpType::Ipv6), nic)?;
+    let ipv6_addrs: Vec<&IpAddr> = ipv6_addrs
+        .iter()
+        // Remove loopback, link local, and unspecified
+        .filter(|addr| {
+            !addr.is_loopback()
+                && !addr.is_unspecified()
+                && !(cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
+        })
+        .collect();
+    if ipv6_addrs.is_empty() {
+        Err(Error::NoAddress)
+    } else {
+        // TODO: Prefer the ones that are likely global
+        // `IpAddr::is_global` is currently unstable.
+        Ok(*ipv6_addrs[0])
     }
 }

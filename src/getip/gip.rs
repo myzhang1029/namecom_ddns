@@ -20,17 +20,17 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-use crate::{IpType, Provider, Result};
+use crate::{Error, IpType, Provider, Result};
 use async_trait::async_trait;
 use derive_deref::Deref;
 use reqwest::{Client, Proxy};
 use serde::Deserialize;
 use serde_json::Value;
 use std::default::Default;
-use std::net::{self, IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::time::Duration;
-use thiserror::Error;
+use thiserror::Error as ErrorDerive;
 use trust_dns_resolver::{
     config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts},
     error::ResolveError,
@@ -76,12 +76,10 @@ impl Default for ProviderInfo {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, ErrorDerive)]
 pub enum GlobalIpError {
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
-    #[error(transparent)]
-    AddrParseError(#[from] net::AddrParseError),
     #[error(transparent)]
     JsonParseError(#[from] serde_json::Error),
     #[error("field `{0}' does not exist in response")]
@@ -174,12 +172,8 @@ async fn build_client_get(
 /// Create a `getip::Result` containing the IP address
 fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
     Ok(match addr_type {
-        IpType::Ipv4 => {
-            IpAddr::V4(Ipv4Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?)
-        }
-        IpType::Ipv6 => {
-            IpAddr::V6(Ipv6Addr::from_str(addr).map_err(GlobalIpError::AddrParseError)?)
-        }
+        IpType::Ipv4 => IpAddr::V4(Ipv4Addr::from_str(addr).map_err(Error::AddrParseError)?),
+        IpType::Ipv6 => IpAddr::V6(Ipv6Addr::from_str(addr).map_err(Error::AddrParseError)?),
     })
 }
 
@@ -319,6 +313,7 @@ impl Default for ProviderMultiple {
 
 impl ProviderMultiple {
     /// A default IPv6 provider
+    #[must_use]
     pub fn default_v6() -> Self {
         Self {
             addr_type: IpType::Ipv6,
