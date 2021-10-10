@@ -162,13 +162,13 @@ async fn build_client_get(
     Ok((async {
         let client = build_client(timeout, proxy)?;
         debug!("Reqwesting {:?} through proxy {:?}", url, proxy);
-        Ok(client
+        client
             .get(url)
             .send()
             .await?
             .error_for_status()?
             .text()
-            .await?)
+            .await
     })
     .await
     .map_err(GlobalIpError::ReqwestError)?)
