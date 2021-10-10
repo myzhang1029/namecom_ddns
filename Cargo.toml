@@ -1,11 +1,14 @@
 [package]
 name = "namecom_ddns"
-description = "Name.com DNS Updater"
+version = "0.3.0"
 authors = ["Zhang Maiyun <myzhang1029@hotmail.com>", "dalance <dalance@gmail.com>"]
-license = "AGPL-3.0-or-later"
-version = "0.2.0"
-readme = "README.md"
 edition = "2018"
+description = "Query IP addresses and update DNS records with Name.com API"
+readme = "README.md"
+repository = "https://github.com/myzhang1029/namecom_ddns"
+license = "AGPL-3.0-or-later"
+categories = ["command-line-utilities"]
+exclude = ["/ci", ".*"]
 
 [dependencies]
 async-trait = "0.1"
