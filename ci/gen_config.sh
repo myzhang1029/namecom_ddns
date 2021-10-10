@@ -7,6 +7,8 @@ case "$(uname)" in
     Linux)
         iface="$(ip addr|grep UP|cut -d: -f2|grep -v lo|head -n 1|xargs)"
         ;;
+    MINGW*)
+        iface="$(netsh interface ip show addresses|grep Configuration|awk '{print $4}'|head -n 1|xargs)"
     *)
         iface="lo"
 esac
