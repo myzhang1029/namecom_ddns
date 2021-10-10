@@ -311,7 +311,12 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
                 curr_adapter = (*curr_adapter).Next;
             }
         }
-        Ok(addresses)
+        if addresses.is_empty() {
+            debug!("No address becase none of the adapters has a matching one");
+            Err(Error::NoAddress)
+        } else {
+            Ok(addresses)
+        }
     } else {
         // Let Rust interpret the error for me
         Err(Error::IoError(std::io::Error::from_raw_os_error(
