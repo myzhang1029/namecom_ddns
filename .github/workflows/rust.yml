@@ -43,10 +43,10 @@ jobs:
         TEST_NAMECOM_USER: ${{ secrets.TEST_NAMECOM_USER }}
         TEST_NAMECOM_KEY: ${{ secrets.TEST_NAMECOM_KEY }}
       run: |
-        ci/gen_config.sh
+        bash ci/gen_config.sh
         cargo run -- -sf ci_config.toml -l debug
         rm ci_config.toml
-        ci/validate_and_cleanup.sh
+        bash ci/validate_and_cleanup.sh
     - name: Build release
       run: cargo build --release
     - run: rm target/release/namecom_ddns.d

@@ -9,8 +9,10 @@ case "$(uname)" in
         ;;
     MINGW*)
         iface="$(netsh interface ip show addresses|grep Configuration|awk '{print $4}'|head -n 1|xargs)"
+        ;;
     *)
         iface="lo"
+        ;;
 esac
 
 cat > ci_config.toml << EOF
