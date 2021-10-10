@@ -183,7 +183,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
 /// Convert raw pointer `raw_addr` of type `*SOCKADDR` to Rust `IpAddr`.
 /// `raw_addr` must not be `NULL`.
 #[cfg(windows)]
-fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
+unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
     if i32::from(unsafe { *raw_addr }.sa_family) == ws2def::AF_INET {
         #[allow(clippy::cast_ptr_alignment)]
         let saddr_in = raw_addr.cast::<SOCKADDR_IN>();
@@ -200,13 +200,13 @@ fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
 /// Extract all addresses from an adapter.
 /// `adapter` must not be `NULL`.
 #[cfg(windows)]
-fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
+unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
     let mut addresses: Vec<IpAddr> = Vec::new();
     let mut cur_unicast: *mut IP_ADAPTER_UNICAST_ADDRESS = unsafe { *adapter }.FirstUnicastAddress;
     while !cur_unicast.is_null() {
         let raw_addr = unsafe { *cur_unicast }.Address.lpSockaddr;
         assert!(!raw_addr.is_null());
-        let ipaddr = sockaddr_to_ipaddr(raw_addr);
+        let ipaddr = unsafe { sockaddr_to_ipaddr(raw_addr) };
         debug!(
             "Found good unicast address on adapter {:?}: {:?}",
             unsafe { *adapter }.FriendlyName,
@@ -219,7 +219,7 @@ fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
     while !cur_anycast.is_null() {
         let raw_addr = unsafe { *cur_anycast }.Address.lpSockaddr;
         assert!(!raw_addr.is_null());
-        let ipaddr = sockaddr_to_ipaddr(raw_addr);
+        let ipaddr = unsafe { sockaddr_to_ipaddr(raw_addr) };
         debug!(
             "Found good anycast address on adapter {:?}: {:?}",
             unsafe { *adapter }.FriendlyName,
@@ -299,11 +299,11 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
             trace!("Examining adpater {:?}", adapter_name);
             if let Some(expected_adapter_name) = iface_name {
                 if adapter_name == expected_adapter_name {
-                    let mut addrs = extract_addresses(curr_adapter);
+                    let mut addrs = unsafe { extract_addresses(curr_adapter) };
                     addresses.append(&mut addrs);
                 }
             } else {
-                let mut addrs = extract_addresses(curr_adapter);
+                let mut addrs = unsafe { extract_addresses(curr_adapter) };
                 addresses.append(&mut addrs);
             }
             curr_adapter = unsafe { *curr_adapter }.Next;
