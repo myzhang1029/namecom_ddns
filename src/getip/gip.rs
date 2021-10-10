@@ -195,7 +195,7 @@ fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
 
 /// Plain text provider.
 #[derive(Clone, Debug, Deref)]
-struct ProviderPlain(AbstractProvider);
+pub struct ProviderPlain(AbstractProvider);
 
 make_new! {ProviderPlain}
 
@@ -325,7 +325,7 @@ pub struct ProviderMultiple {
 
 impl Default for ProviderMultiple {
     fn default() -> Self {
-        let providers: Vec<ProviderInfo> = serde_json::from_str(PROVIDERS).unwrap();
+        let providers: Vec<ProviderInfo> = serde_json::from_str(DEFAULT_PROVIDERS).unwrap();
         Self {
             providers,
             addr_type: IpType::Ipv4,
@@ -383,7 +383,20 @@ impl Provider for ProviderMultiple {
     }
 }
 
-const PROVIDERS: &str = r#"[
+/// JSON list of default providers that `ProviderDefault` uses.
+pub const DEFAULT_PROVIDERS: &str = r#"[
+  {
+    "method": "plain",
+    "name": "ipify",
+    "type": "IPv4",
+    "url": "https://api.ipify.org/"
+  },
+  {
+    "method": "plain",
+    "name": "ipify",
+    "type": "IPv6",
+    "url": "https://api6.ipify.org/"
+  },
   {
     "method": "plain",
     "name": "ipv6-test",

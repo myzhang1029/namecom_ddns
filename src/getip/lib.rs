@@ -1,4 +1,14 @@
 //! Asynchronous library for retrieving IP address information
+//!
+//! For retrieval of a single address, simply use `get_ip` and set
+//! appropriate parameters.
+//!
+//! In case a finer-grained control over the source of addresses is required,
+//! individual `Providers` on which `get_ip` is based can be found in `gip`
+//! (for global) and `hostip` (for local).
+//!
+//! Module `libc_getips` contains a low-level function to receive all addresses
+//! directly from the interfaces/adapters.
 //
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
 //
@@ -140,12 +150,25 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
         (IpType::Ipv6, IpScope::Global) => {
             // Get a global IPv6 address
             let p = gip::ProviderMultiple::default_v6();
-            // TODO: An local address is likely global in the case of IPv6 as well
-            // Try following address selection algorithm
             p.get_addr().await
         }
-        (IpType::Ipv4, IpScope::Local) => hostip::get_local_ipv4(nic),
-        (IpType::Ipv6, IpScope::Local) => hostip::get_local_ipv6(nic).await,
+        (IpType::Ipv4, IpScope::Local) => {
+            // Get a local IPv4 address
+            let p = hostip::LocalLibcProvider::new(nic, IpType::Ipv4);
+            p.get_addr().await
+        }
+        (IpType::Ipv6, IpScope::Local) => {
+            // Get a local IPv6 address
+            if let Some(nic) = nic {
+                let command_provider = hostip::LocalIpv6CommandProvider::new(nic, true);
+                let command_result = command_provider.get_addr().await;
+                if command_result.is_ok() || matches!(command_result, Err(Error::NoAddress)) {
+                    return command_result;
+                }
+            };
+            let p = hostip::LocalLibcProvider::new(nic, IpType::Ipv6);
+            p.get_addr().await
+        }
     }
 }
 

@@ -22,7 +22,6 @@
 
 use crate::IpType;
 use crate::{Error, Result};
-use libc;
 #[cfg(windows)]
 use log::error;
 use log::{debug, trace};
