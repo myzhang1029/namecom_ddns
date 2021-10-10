@@ -1,3 +1,4 @@
+use log::{debug, trace};
 /// Name.com DNS API helper.
 //
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
@@ -136,8 +137,10 @@ impl NameComDnsApi {
     /// method: Method of this request.
     /// path: /v4/{} url path.
     fn with_param(&self, method: Method, path: &str) -> RequestBuilder {
+        let url = format!("{}/v4/{}", self.url, path);
+        debug!("Creating reqwest client: {:?}", url);
         self.client
-            .request(method, format!("{}/v4/{}", self.url, path))
+            .request(method, &url)
             .basic_auth(&self.username, Some(&self.password))
     }
 
@@ -250,6 +253,8 @@ impl NameComDnsApi {
             .await?
             .iter()
             .filter_map(|record| {
+                // Try not to leak too much information
+                trace!("Found record {:?}", record.fqdn);
                 if (record.host.as_deref() == host) && record.rec_type == rec_type {
                     Some(record.id)
                 } else {

@@ -18,6 +18,7 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 use crate::api::RecordType;
+use log::{debug, trace};
 use serde::Deserialize;
 use std::fs::File;
 use std::io;
@@ -81,8 +82,10 @@ pub struct NameComDdnsConfig {
 impl NameComDdnsConfig {
     pub fn from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let mut file = File::open(path)?;
+        debug!("Opened file {:?}", file);
         let mut file_content = String::new();
         file.read_to_string(&mut file_content)?;
+        trace!("Configuration contains {:?}", file_content);
         Ok(toml::from_str(&file_content)?)
     }
 }

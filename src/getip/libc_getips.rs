@@ -1,6 +1,9 @@
 use crate::IpType;
 use crate::{Error, Result};
 use libc;
+#[cfg(windows)]
+use log::error;
+use log::{debug, trace};
 use std::ffi::CStr;
 use std::mem;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -48,9 +51,14 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
         if (ip_type == IpType::Ipv4 && family != libc::AF_INET)
             || (ip_type == IpType::Ipv6 && family != libc::AF_INET6)
         {
+            trace!("Short-circuiting NoAddress: addr family does not match requested type");
             return Err(Error::NoAddress);
         }
     } else if family != libc::AF_INET && family != libc::AF_INET6 {
+        trace!(
+            "Short-circuiting NoAddress: family type {:?} not address",
+            family
+        );
         return Err(Error::NoAddress);
     }
     // Length for `getnameinfo`
@@ -106,6 +114,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
             let ifa_name = addr.ifa_name as *const libc::c_char;
             let ifa_name = CStr::from_ptr(ifa_name).to_bytes();
             let ifa_name = std::str::from_utf8_unchecked(ifa_name);
+            trace!("Got interface {:?}", ifa_name);
             // Filter iface name
             let address = iface_name.map_or_else(
                 || get_addr_for_ifa_unix(addr, ip_type),
@@ -118,6 +127,12 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
                 },
             );
             if let Ok(address) = address {
+                trace!(
+                    "Found good addresses of type {:?} for interface {:?}: {:?}",
+                    ip_type,
+                    iface_name,
+                    address
+                );
                 result.push(address);
             }
             addrs = addr.ifa_next;
@@ -125,6 +140,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         libc::freeifaddrs(save_addrs);
     }
     if result.is_empty() {
+        debug!("No address becase none of the interfaces has a matching one");
         Err(Error::NoAddress)
     } else {
         Ok(result)
@@ -155,14 +171,26 @@ unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
     while !cur_unicast.is_null() {
         let raw_addr = (*cur_unicast).Address.lpSockaddr;
         assert!(!raw_addr.is_null());
-        addresses.push(sockaddr_to_ipaddr(raw_addr));
+        let ipaddr = sockaddr_to_ipaddr(raw_addr);
+        debug!(
+            "Found good unicast address on adapter {:?}: {:?}",
+            (*adapter).AdapterName,
+            ipaddr
+        );
+        addresses.push(ipaddr);
         cur_unicast = (*cur_unicast).Next;
     }
     let mut cur_anycast: *mut IP_ADAPTER_ANYCAST_ADDRESS = (*adapter).FirstAnycastAddress;
     while !cur_anycast.is_null() {
         let raw_addr = (*cur_anycast).Address.lpSockaddr;
         assert!(!raw_addr.is_null());
-        addresses.push(sockaddr_to_ipaddr(raw_addr));
+        let ipaddr = sockaddr_to_ipaddr(raw_addr);
+        debug!(
+            "Found good anycast address on adapter {:?}: {:?}",
+            (*adapter).AdapterName,
+            ipaddr
+        );
+        addresses.push(ipaddr);
         cur_anycast = (*cur_anycast).Next;
     }
     addresses
@@ -192,10 +220,11 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         // Silence maybe uninitialized error
         adapter_addresses = mem::zeroed();
         // Try several times to query the resources as suggested by doc
-        for _ in 0..MAX_TRIES {
+        for trial in 0..MAX_TRIES {
             adapter_addresses = HeapAlloc(GetProcessHeap(), 0, allocated_size as usize)
                 as *mut IP_ADAPTER_ADDRESSES;
             if adapter_addresses.is_null() {
+                error!("Raw heap allocation failed");
                 return fail_os_err!();
             }
             return_value = GetAdaptersAddresses(
@@ -204,6 +233,10 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
                 ptr::null_mut(),
                 adapter_addresses,
                 &mut allocated_size,
+            );
+            debug!(
+                "GetAdaptersAddresses returned {:?} on the {}th trial",
+                return_value, trial
             );
             if return_value == winerror::ERROR_BUFFER_OVERFLOW {
                 HeapFree(GetProcessHeap(), 0, adapter_addresses as LPVOID);
@@ -220,6 +253,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
                 let adapter_name = (*curr_adapter).AdapterName as *const libc::c_char;
                 let adapter_name = CStr::from_ptr(adapter_name).to_bytes();
                 let adapter_name = std::str::from_utf8_unchecked(adapter_name);
+                trace!("Examining adpater {:?}", adapter_name);
                 if let Some(expected_adapter_name) = iface_name {
                     if adapter_name == expected_adapter_name {
                         let mut addrs = extract_addresses(curr_adapter);

@@ -48,6 +48,7 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> Result<Output> {
     for (cmd, args) in commands {
         let mut command = Command::new(cmd);
         command.stdout(Stdio::piped());
+        debug!("Running command {:?} with arguments {:?}", cmd, args);
         let output = command.args(&args).output().await;
         match output {
             Ok(output) => {
@@ -115,6 +116,7 @@ async fn get_ipv6_ifconfig_ip(nic: &str, permanent: bool) -> Result<Result<IpAdd
         }
     }
     if addrs.is_empty() {
+        debug!("Short-circuting NoAddress because an ip command succeeded without addresses");
         Ok(Err(crate::Error::NoAddress))
     } else {
         Ok(Ok(addrs
@@ -156,7 +158,15 @@ pub fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
         .iter()
         // Remove loopback, link local, and unspecified
         .filter(|addr| {
-            !addr.is_loopback() && !cast_ipv4!(addr).is_link_local() && !addr.is_unspecified()
+            let remove =
+                !addr.is_loopback() && !cast_ipv4!(addr).is_link_local() && !addr.is_unspecified();
+            if remove {
+                debug!(
+                    "Removing address {:?} because it is loopback/link local/unspecified",
+                    addr
+                );
+            }
+            remove
         })
         .collect();
     if ipv4_addrs.is_empty() {

@@ -107,6 +107,7 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
             // Get a global IPv6 address
             let p = gip::ProviderMultiple::default_v6();
             // TODO: An local address is likely global in the case of IPv6 as well
+            // Try following address selection algorithm
             p.get_addr().await
         }
         (IpType::Ipv4, IpScope::Local) => hostip::get_local_ipv4(nic),

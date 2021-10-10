@@ -23,6 +23,7 @@
 use crate::{Error, IpType, Provider, Result};
 use async_trait::async_trait;
 use derive_deref::Deref;
+use log::{debug, trace};
 use reqwest::{Client, Proxy};
 use serde::Deserialize;
 use serde_json::Value;
@@ -158,15 +159,19 @@ async fn build_client_get(
     timeout: u64,
     proxy: &Option<(String, u16)>,
 ) -> Result<String> {
-    let client = build_client(timeout, proxy).map_err(GlobalIpError::ReqwestError)?;
-    Ok(client
-        .get(url)
-        .send()
-        .await
-        .map_err(GlobalIpError::ReqwestError)?
-        .text()
-        .await
-        .map_err(GlobalIpError::ReqwestError)?)
+    Ok((async {
+        let client = build_client(timeout, proxy)?;
+        debug!("Reqwesting {:?} through proxy {:?}", url, proxy);
+        Ok(client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?)
+    })
+    .await
+    .map_err(GlobalIpError::ReqwestError)?)
 }
 
 /// Create a `getip::Result` containing the IP address
@@ -187,6 +192,7 @@ make_new! {ProviderPlain}
 impl Provider for ProviderPlain {
     async fn get_addr(&self) -> Result<IpAddr> {
         let addr = build_client_get(&self.info.url, self.timeout, &self.proxy).await?;
+        debug!("Plain provider {:?} returned {:?}", self.info, addr);
         create_ipaddr(&addr, self.info.addr_type)
     }
 
@@ -203,6 +209,7 @@ make_new! {ProviderJson}
 impl Provider for ProviderJson {
     async fn get_addr(&self) -> Result<IpAddr> {
         let resp = build_client_get(&self.info.url, self.timeout, &self.proxy).await?;
+        trace!("Provider got response {:?}", resp);
         // Try to parse the response as JSON
         let json: Value = serde_json::from_str(&resp).map_err(GlobalIpError::JsonParseError)?;
         let key = self
@@ -216,6 +223,7 @@ impl Provider for ProviderJson {
             .ok_or_else(|| GlobalIpError::JsonNotFoundError(key.clone()))?
             .as_str()
             .ok_or(GlobalIpError::JsonDecodeError(key))?;
+        debug!("JSON provider {:?} returned {:?}", self.info, addr);
         create_ipaddr(addr, self.info.addr_type)
     }
 
@@ -261,6 +269,7 @@ impl Provider for ProviderDns {
         // First get the address of the DNS server
         let resolver = TokioAsyncResolver::tokio(ResolverConfig::new(), opts)
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
+        debug!("Resolving {:?} on {:?}", server, resolver);
         // Get Resolver's address
         let server_addr = host_to_addr(resolver, server, self.info.addr_type)
             .await
@@ -280,11 +289,13 @@ impl Provider for ProviderDns {
         // Create new resolver
         let resolver = TokioAsyncResolver::tokio(config, opts)
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
+        debug!("Resolving {:?} on {:?}", query, resolver);
         let addr = host_to_addr(resolver, query, self.info.addr_type)
             .await
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?
             // Deal with Nones
             .ok_or_else(|| GlobalIpError::DnsNoServerError(server.to_string()))?;
+        debug!("DNS provider {:?} returned {:?}", self.info, addr);
         Ok(addr)
     }
 
@@ -326,6 +337,7 @@ impl ProviderMultiple {
 impl Provider for ProviderMultiple {
     async fn get_addr(&self) -> Result<IpAddr> {
         let mut result: Result<IpAddr> = Err(crate::Error::NoAddress);
+        trace!("Registered providers: {:?}", self.providers);
         for info in &self.providers {
             if info.addr_type != self.addr_type {
                 continue;
@@ -345,6 +357,7 @@ impl Provider for ProviderMultiple {
                 }
             };
             if this_result.is_ok() {
+                debug!("Using result {:?} from provider {:?}", this_result, info);
                 result = this_result;
                 break;
             }
