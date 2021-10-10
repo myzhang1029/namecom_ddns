@@ -22,9 +22,8 @@ use winapi::{
         heapapi::{GetProcessHeap, HeapAlloc, HeapFree},
         iphlpapi::GetAdaptersAddresses,
         iptypes::{
-            GAA_FLAG_INCLUDE_PREFIX, GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_FRIENDLY_NAME,
-            GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES, IP_ADAPTER_ANYCAST_ADDRESS,
-            IP_ADAPTER_UNICAST_ADDRESS,
+            GAA_FLAG_INCLUDE_PREFIX, GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_MULTICAST,
+            IP_ADAPTER_ADDRESSES, IP_ADAPTER_ANYCAST_ADDRESS, IP_ADAPTER_UNICAST_ADDRESS,
         },
     },
 };
@@ -174,7 +173,7 @@ unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
         let ipaddr = sockaddr_to_ipaddr(raw_addr);
         debug!(
             "Found good unicast address on adapter {:?}: {:?}",
-            (*adapter).AdapterName,
+            (*adapter).FriendlyName,
             ipaddr
         );
         addresses.push(ipaddr);
@@ -187,7 +186,7 @@ unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
         let ipaddr = sockaddr_to_ipaddr(raw_addr);
         debug!(
             "Found good anycast address on adapter {:?}: {:?}",
-            (*adapter).AdapterName,
+            (*adapter).FriendlyName,
             ipaddr
         );
         addresses.push(ipaddr);
@@ -208,10 +207,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         Some(IpType::Ipv6) => ws2def::AF_INET6,
         None => ws2def::AF_UNSPEC,
     } as u32;
-    let flags: ULONG = GAA_FLAG_INCLUDE_PREFIX
-        | GAA_FLAG_SKIP_DNS_SERVER
-        | GAA_FLAG_SKIP_MULTICAST
-        | GAA_FLAG_SKIP_FRIENDLY_NAME;
+    let flags: ULONG = GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_MULTICAST;
     // Allocate a 15 KB buffer to start with.
     let mut allocated_size: ULONG = INITIAL_ALLOC_SIZE;
     let mut adapter_addresses: *mut IP_ADAPTER_ADDRESSES;
@@ -250,7 +246,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         let mut curr_adapter = adapter_addresses;
         while !curr_adapter.is_null() {
             unsafe {
-                let adapter_name = (*curr_adapter).AdapterName as *const libc::c_char;
+                let adapter_name = (*curr_adapter).FriendlyName as *const libc::c_char;
                 let adapter_name = CStr::from_ptr(adapter_name).to_bytes();
                 let adapter_name = std::str::from_utf8_unchecked(adapter_name);
                 trace!("Examining adpater {:?}", adapter_name);

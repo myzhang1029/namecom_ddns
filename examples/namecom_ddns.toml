@@ -18,8 +18,8 @@ ttl = 300
 # "local" for an address on the NIC
 method = "global"
 # Ignored if method is "global"
-# On Windows, this is the GUID of the adapter, can be found in the registry at
-# /HKEY_LOCAL_MACHINE/SOFTWARE/Microsoft/WindowsNT/CurrentVersion/NetworkCards/*/ServiceName
+# On Windows, this is the "Friendly Name" of the adapter.
+# Shown by `ipconfig` or `netsh interface ip show config`
 interface = "en0"
 
 [[records]]
