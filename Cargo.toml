@@ -7,7 +7,8 @@ description = "Query IP addresses and update DNS records with Name.com API"
 readme = "README.md"
 repository = "https://github.com/myzhang1029/namecom_ddns"
 license = "AGPL-3.0-or-later"
-categories = ["command-line-utilities"]
+keywords = ["ddns", "dns", "ip"]
+categories = ["command-line-utilities", "api-bindings"]
 exclude = ["/ci", ".*"]
 
 [dependencies]
