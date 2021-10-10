@@ -24,6 +24,7 @@ use std::ops::Deref;
 use std::time::Duration;
 use strum_macros::{Display, EnumString};
 
+/// Deserializer for `reqwest::Response` of record listings.
 #[derive(Deserialize, Debug)]
 pub struct ListingResponse {
     records: Vec<NameComRecord>,
@@ -37,7 +38,7 @@ impl Deref for ListingResponse {
     }
 }
 
-/// Type of the records
+/// Type of DNS records.
 #[derive(Copy, Clone, Debug, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize)]
 pub enum RecordType {
     A,
@@ -64,7 +65,7 @@ pub enum RecordType {
     Txt,
 }
 
-/// Record item
+/// DNS record entry on name.com.
 #[derive(Clone, Debug, Deserialize)]
 pub struct NameComRecord {
     id: i32,
@@ -81,37 +82,49 @@ pub struct NameComRecord {
     priority: Option<u32>,
 }
 
-/// Record item for update (readonly fields removed)
+/// Record entry for update. (A `NameComRecord` without readonly fields.)
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NameComNewRecord {
-    // None or "@" means apex
+    /// Host name below zone. None or "@" means apex.
     pub host: Option<String>,
+    /// Record type.
     #[serde(rename = "type")]
     pub rec_type: RecordType,
+    /// Record value.
     pub answer: String,
+    /// Record Time To Live.
     pub ttl: u32,
-    // Only for MX or SRV
+    /// Priority. Only for `MX` or `SRV` records.
     pub priority: Option<u32>,
 }
 
+/// name.com API client.
+#[allow(clippy::module_name_repetitions)]
 pub struct NameComDnsApi {
+    /// API endpoint URL.
     url: String,
+    /// API username.
     username: String,
-    pub password: String,
+    /// API password.
+    password: String,
+    /// `reqwest::Client` for operations.
     client: Client,
 }
 
-/// Name.com DNS API helper
+/// Name.com DNS API helper.
 ///
-/// get_record() and delete_record() are not used by this program, but kept for completeness.
-/// Reference: <https://www.name.com/api-docs/DNS>.
+/// `_get_record` and `_delete_record` are not used by this program, but kept for completeness.
+///
+/// # See Also
+///
+/// API Documentation: <https://www.name.com/api-docs/DNS>.
 impl NameComDnsApi {
     /// Create a DNS API helper.
     ///
-    /// username: API username.
-    /// password: API key.
-    /// api_url: API endpoint like <https://api.name.com/>.
-    /// timeout: HTTP timeout in seconds, 0 means no timeout.
+    /// - `username`: API username.
+    /// - `password`: API key.
+    /// - `api_url`: API endpoint like <https://api.name.com/>.
+    /// - `timeout`: HTTP timeout in seconds, 0 means no timeout.
     pub fn create(
         username: &str,
         password: &str,
@@ -134,8 +147,8 @@ impl NameComDnsApi {
 
     /// Create a request with appropriate parameters.
     ///
-    /// method: Method of this request.
-    /// path: /v4/{} url path.
+    /// - `method`: Method of this request.
+    /// - `path`: /v4/{} url path.
     fn with_param(&self, method: Method, path: &str) -> RequestBuilder {
         let url = format!("{}/v4/{}", self.url, path);
         debug!("Creating reqwest client: {:?}", url);
@@ -146,9 +159,9 @@ impl NameComDnsApi {
 
     /// List the records on a zone.
     ///
-    /// domain: The zone that the querying records belong to.
+    /// - `domain`: The zone that the querying records belong to.
     ///
-    /// Returns a ListingResponse if succeeded.
+    /// Returns a `ListingResponse` if succeeded.
     pub async fn list_records(&self, domain: &str) -> reqwest::Result<ListingResponse> {
         Ok(self
             .with_param(Method::GET, &format!("domains/{}/records", domain))
@@ -161,10 +174,10 @@ impl NameComDnsApi {
 
     /// Get the information of a record.
     ///
-    /// domain: The zone that the querying record belongs to.
-    /// id: Identifier of the record.
+    /// - `domain`: The zone that the querying record belongs to.
+    /// - `id`: Identifier of the record.
     ///
-    /// Returns a NameComRecord if succeeded.
+    /// Returns a `NameComRecord` if succeeded.
     pub async fn _get_record(&self, domain: &str, id: i32) -> reqwest::Result<NameComRecord> {
         Ok(self
             .with_param(Method::GET, &format!("domains/{}/records/{}", domain, id))
@@ -177,10 +190,10 @@ impl NameComDnsApi {
 
     /// Create a new record.
     ///
-    /// domain: The zone that the record belongs to.
-    /// record: The new record.
+    /// - `domain`: The zone that the record belongs to.
+    /// - `record`: The new record.
     ///
-    /// Returns a NameComRecord if succeeded.
+    /// Returns a `NameComRecord` if succeeded.
     pub async fn create_record(
         &self,
         domain: &str,
@@ -198,11 +211,11 @@ impl NameComDnsApi {
 
     /// Update a record.
     ///
-    /// domain: The zone that the record belongs to.
-    /// id: Identifier of the record.
-    /// record: The new record.
+    /// - `domain`: The zone that the record belongs to.
+    /// - `id`: Identifier of the record.
+    /// - `record`: The new record.
     ///
-    /// Returns a NameComRecord if succeeded.
+    /// Returns a `NameComRecord` if succeeded.
     pub async fn update_record(
         &self,
         domain: &str,
@@ -221,8 +234,8 @@ impl NameComDnsApi {
 
     /// Delete a record.
     ///
-    /// domain: The zone that the record belongs to.
-    /// id: Identifier of the record.
+    /// - `domain`: The zone that the record belongs to.
+    /// - `id`: Identifier of the record.
     pub async fn _delete_record(&self, domain: &str, id: i32) -> reqwest::Result<()> {
         self.with_param(
             Method::DELETE,
@@ -237,9 +250,9 @@ impl NameComDnsApi {
     /// Search for records with the same type and host.
     /// Note that only exact matches will be returned.
     ///
-    /// domain: The zone that the record belongs to.
-    /// rec_type: The type to search for.
-    /// host: The host to search for.
+    /// - `domain`: The zone that the record belongs to.
+    /// - `rec_type`: The type to search for.
+    /// - `host`: The host to search for.
     ///
     /// Returns a vector of matching ids if succeeded.
     pub async fn search_records(

@@ -120,6 +120,7 @@ struct DdnsApp<'a> {
 }
 
 impl<'a> DdnsApp<'a> {
+    /// Create a new App.
     fn new(records: &'a [config::NameComConfigRecord], client: &'a api::NameComDnsApi) -> Self {
         Self {
             client,
@@ -128,7 +129,7 @@ impl<'a> DdnsApp<'a> {
         }
     }
 
-    /// Update every record specified
+    /// Update every record specified.
     async fn update_once(&self) -> bool {
         futures::future::join_all(
             self.records
@@ -140,7 +141,7 @@ impl<'a> DdnsApp<'a> {
         .all(|a| *a)
     }
 
-    /// Main loop for updating every entry
+    /// Main loop for updating every entry.
     async fn updater_loop(&self, interval: &mut time::Interval) {
         loop {
             interval.tick().await;
@@ -158,26 +159,25 @@ impl<'a> DdnsApp<'a> {
             // Hack to convert Option<&i32> to Option<i32>
             (|| Some(*cache.get(item)?))()
         };
-        Ok(match id {
-            // Check if the id still points to the same record skipped
-            Some(id) => Some(id),
-            None => {
-                let matches = self
-                    .client
-                    .search_records(&item.zone, item.rec_type, Some(&item.host))
-                    .await?;
-                if matches.is_empty() {
-                    None
-                } else {
-                    let mut cache = self.id_cache.write().await;
-                    cache.insert(item.clone(), matches[0]);
-                    Some(matches[0])
-                }
+        // Check if the id still points to the same record skipped
+        Ok(if matches!(id, None) {
+            let matches = self
+                .client
+                .search_records(&item.zone, item.rec_type, Some(&item.host))
+                .await?;
+            if matches.is_empty() {
+                None
+            } else {
+                let mut cache = self.id_cache.write().await;
+                cache.insert(item.clone(), matches[0]);
+                Some(matches[0])
             }
+        } else {
+            id
         })
     }
 
-    /// Check and update a single record item
+    /// Check and update a single record item.
     async fn update_single_item(&self, item: &config::NameComConfigRecord) -> bool {
         let (answer, old) = join!(self.get_ip_by_item(item), self.get_id(item));
 
@@ -228,6 +228,7 @@ impl<'a> DdnsApp<'a> {
         }
     }
 
+    /// Wrapper to get IP addresses with `getip`.
     async fn get_ip_by_item(
         &self,
         item: &config::NameComConfigRecord,

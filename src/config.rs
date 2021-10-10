@@ -74,6 +74,7 @@ pub struct NameComConfigRecord {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(clippy::module_name_repetitions)]
 pub struct NameComDdnsConfig {
     pub core: NameComConfigCore,
     pub records: Vec<NameComConfigRecord>,

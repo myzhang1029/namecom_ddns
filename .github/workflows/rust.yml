@@ -34,7 +34,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Run lints
-      run: cargo clippy -- -D warnings --verbose
+      run: cargo clippy -- -D warnings -W clippy::pedantic --verbose
     - name: Run integration test
       if: startswith( matrix.config.os, 'macos' ) || startswith( matrix.config.os, 'ubuntu' )
       env:
