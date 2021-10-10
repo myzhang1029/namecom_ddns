@@ -1,9 +1,33 @@
+//! Receive IP addresses of NICs with `libc` APIs.
+//! - On Windows, API `GetAdaptersAddresses` is used.
+//! - On unix-like systems, `getifaddrs` and `getnameinfo` are used.
+//
+//  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
+//
+//  This file is part of DNS updater.
+//
+//  DNS updater is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  DNS updater is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 use crate::IpType;
 use crate::{Error, Result};
 use libc;
 #[cfg(windows)]
 use log::error;
 use log::{debug, trace};
+#[cfg(unix)]
+use std::convert::TryInto;
 use std::ffi::CStr;
 use std::mem;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -61,11 +85,13 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
         return Err(Error::NoAddress);
     }
     // Length for `getnameinfo`
-    let socklen = match family {
+    let socklen: libc::socklen_t = match family {
         libc::AF_INET => mem::size_of::<libc::sockaddr_in>(),
         libc::AF_INET6 => mem::size_of::<libc::sockaddr_in6>(),
         _ => unreachable!(),
-    } as libc::socklen_t;
+    }
+    .try_into()
+    .unwrap();
     // Allocating on stack, so only when necessary
     {
         const MAXHOST: usize = libc::NI_MAXHOST as usize;
@@ -93,8 +119,16 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
     }
 }
 
-/// Get all assigned ip addresses of the specified type on the specified interface
-/// Both parameters can be None, in which case that filter is not applied.
+/// Get all assigned IP addresses of family `ip_type` on the interface named `iface_name`.
+///
+/// Both parameters can be `None`, in which case that filter is not applied.
+///
+/// If the result is an `Ok` variant, the vector is guaranteed to be non-empty.
+///
+/// # Errors
+///
+/// This function fails with the `IoError` variant if an underlying OS operation
+/// failed, or `NoAddress` if no matching addresses found.
 #[cfg(unix)]
 pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Result<Vec<IpAddr>> {
     // Hold all found addresses
@@ -146,8 +180,8 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
     }
 }
 
-/// Convert pointer to a `SOCKADDR` to Rust IpAddr
-/// `raw_addr` must not be NULL
+/// Convert raw pointer `raw_addr` of type `*SOCKADDR` to Rust `IpAddr`.
+/// `raw_addr` must not be `NULL`.
 #[cfg(windows)]
 unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
     if (*raw_addr).sa_family as i32 == ws2def::AF_INET {
@@ -161,8 +195,8 @@ unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
     }
 }
 
-/// Extract all addresses from an adapter
-/// `adapter` must not be NULL
+/// Extract all addresses from an adapter.
+/// `adapter` must not be `NULL`.
 #[cfg(windows)]
 unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
     let mut addresses: Vec<IpAddr> = Vec::new();
@@ -195,11 +229,20 @@ unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
     addresses
 }
 
-/// Get all assigned ip addresses of the specified type on the specified interface
-/// Both parameters can be None, in which case that filter is not applied.
+/// Get all assigned IP addresses of family `ip_type` on the interface named `iface_name`.
 ///
-/// See also:
-/// https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersaddresses
+/// Both parameters can be `None`, in which case that filter is not applied.
+///
+/// If the result is an `Ok` variant, the vector is guaranteed to be non-empty.
+///
+/// # Errors
+///
+/// This function fails with the `IoError` variant if an underlying OS operation
+/// failed, or `NoAddress` if no matching addresses found.
+///
+/// # See also
+///
+/// MSDN documentation on `GetAdaptersAddresses`: <https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersaddresses>.
 #[cfg(windows)]
 pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Result<Vec<IpAddr>> {
     let family: u32 = match ip_type {

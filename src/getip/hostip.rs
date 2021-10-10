@@ -152,6 +152,10 @@ macro_rules! cast_ipv6 {
 }
 
 /// Get a local IPv4 address on the specified interface.
+///
+/// # Errors
+///
+/// This function propagates the error from `libc_getips::get_iface_addrs`.
 pub fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
     let ipv4_addrs = get_iface_addrs(Some(IpType::Ipv4), nic)?;
     let ipv4_addrs: Vec<&IpAddr> = ipv4_addrs
@@ -169,19 +173,20 @@ pub fn get_local_ipv4(nic: Option<&str>) -> Result<IpAddr> {
             remove
         })
         .collect();
-    if ipv4_addrs.is_empty() {
-        Err(Error::NoAddress)
-    } else {
-        // Prefer the ones that are likely global
-        // XXX: `IpAddr::is_global` is probably a better choice but it's currently unstable.
-        let first_non_local_addr: Option<&&IpAddr> = ipv4_addrs
-            .iter()
-            .find(|addr| !cast_ipv4!(addr).is_private());
-        first_non_local_addr.map_or_else(|| Ok(*ipv4_addrs[0]), |addr| Ok(**addr))
-    }
+    // Prefer the ones that are likely global
+    // XXX: `IpAddr::is_global` is probably a better choice but it's currently unstable.
+    let first_non_local_addr: Option<&&IpAddr> = ipv4_addrs
+        .iter()
+        .find(|addr| !cast_ipv4!(addr).is_private());
+    first_non_local_addr.map_or_else(|| Ok(*ipv4_addrs[0]), |addr| Ok(**addr))
 }
 
 /// Get a local IPv6 address on the specified interface.
+///
+/// # Errors
+///
+/// This function returns `NoAddress` if the IP commands, or in case that none
+/// of those commands are available, it propagates the error from `libc_getips::get_iface_addrs`.
 pub async fn get_local_ipv6(nic: Option<&str>) -> Result<IpAddr> {
     if let Some(nic) = nic {
         if let Ok(command_result) = get_ipv6_ifconfig_ip(nic, true).await {
@@ -199,11 +204,7 @@ pub async fn get_local_ipv6(nic: Option<&str>) -> Result<IpAddr> {
                 && !(cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
         })
         .collect();
-    if ipv6_addrs.is_empty() {
-        Err(Error::NoAddress)
-    } else {
-        // TODO: Prefer the ones that are likely global
-        // `IpAddr::is_global` is currently unstable.
-        Ok(*ipv6_addrs[0])
-    }
+    // TODO: Prefer the ones that are likely global
+    // `IpAddr::is_global` is currently unstable.
+    Ok(*ipv6_addrs[0])
 }

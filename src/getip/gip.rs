@@ -1,5 +1,5 @@
-//! Asynchronous rewrite of dalance/gip
-//! Receive global IP addresses from online services
+//! Implementations of `Provider` that receive global IP addresses from online services.
+//! This is an asynchronous rewrite of dalance/gip.
 //
 //  Copyright (C) 2018 dalance
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
@@ -38,28 +38,29 @@ use trust_dns_resolver::{
     TokioAsyncResolver,
 };
 
+/// Method with which a global `Provider` retrieves addresses.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub enum ProviderMethod {
-    // Plain text HTTP request
+    /// Plain text HTTP request.
     #[serde(rename = "plain")]
     Plain,
-    // HTTP JSON response
+    /// HTTP JSON response.
     #[serde(rename = "json")]
     Json,
-    // DNS Queries
+    /// DNS queries.
     #[serde(rename = "dns")]
     Dns,
 }
 
-/// Information of a provider
+/// Information and configuration of a `Provider`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct ProviderInfo {
-    /// Provider name
+    /// Provider name.
     name: String,
-    /// Provider type of its address
+    /// Provider type of its address.
     #[serde(rename = "type")]
     addr_type: IpType,
-    /// Provider
+    /// Method used by this provider.
     method: ProviderMethod,
     url: String,
     key: Option<String>,
@@ -77,16 +78,22 @@ impl Default for ProviderInfo {
     }
 }
 
+/// Error type of global IP providers.
 #[derive(Debug, ErrorDerive)]
 pub enum GlobalIpError {
+    /// Error because of a `reqwest` request.
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+    /// Error during JSON deserialization.
     #[error(transparent)]
     JsonParseError(#[from] serde_json::Error),
+    /// Specified JSON field does not exist in the response.
     #[error("field `{0}' does not exist in response")]
     JsonNotFoundError(String),
+    /// Specified JSON field cannot be decoded.
     #[error("field `{0}' in response can't be decoded")]
     JsonDecodeError(String),
+    /// DNS queries failed.
     #[error(transparent)]
     DnsError(#[from] Box<ResolveError>),
     #[error("specified DNS server `{0}' has no address")]
@@ -95,7 +102,7 @@ pub enum GlobalIpError {
 
 macro_rules! make_get_type {
     () => {
-        /// Get the IP type that this provider returns
+        /// Get the `IPType` that this provider returns.
         fn get_type(&self) -> IpType {
             self.info.addr_type
         }
@@ -117,7 +124,7 @@ macro_rules! make_new {
     };
 }
 
-/// All providers have those fields
+/// Shared fields among all providers
 #[derive(Clone, Debug)]
 pub struct AbstractProvider {
     pub info: ProviderInfo,
@@ -154,6 +161,8 @@ fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<
 }
 
 /// Build a new request with timeout and proxy and return the response
+///
+/// `url`
 async fn build_client_get(
     url: &str,
     timeout: u64,

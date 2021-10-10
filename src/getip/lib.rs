@@ -1,4 +1,4 @@
-/// Asynchronous library for retrieving IP address information
+//! Asynchronous library for retrieving IP address information
 //
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
 //
@@ -16,6 +16,8 @@
 //
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 extern crate async_trait;
 extern crate derive_deref;
 extern crate libc;
@@ -41,61 +43,90 @@ use thiserror::Error;
 /// Scope of the IP to be received.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub enum IpScope {
-    /// Address as found by an external service
+    /// Address as found by an external service.
+    /// If used behind NAT, the address outside the NAT is received.
+    /// If IPv6 private address extension is enabled, the preferred address is usually used.
     Global,
-    /// Address of the NIC (Permanent/secured if IPv6)
+    /// Address of the NIC.
+    /// If `IpType` is `Ipv6`, the permanent or secured address is preferred.
+    /// If `IpType` is `Ipv4`, the first address is used.
     Local,
 }
 
-/// Type of global address
+/// Type of global address.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub enum IpType {
+    /// An IPv4 address.
     #[serde(rename = "IPv4")]
     Ipv4,
+    /// An IPv6 address.
     #[serde(rename = "IPv6")]
     Ipv6,
 }
 
-/// Errors that can happen.
+/// Error type of IP retrieval methods.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Error from a global IP provider.
     #[error(transparent)]
     GlobalIpError(#[from] crate::gip::GlobalIpError),
 
+    /// Cannot parse string as an IP.
     #[error(transparent)]
     AddrParseError(#[from] std::net::AddrParseError),
 
+    /// Cannot parse data as UTF-8.
     #[error(transparent)]
     UnicodeParseError(#[from] std::string::FromUtf8Error),
 
-    /// Command exited with a non-zero status
+    /// Command exited with a non-zero status.
     #[error("Command exited with status {0}")]
     NonZeroExit(std::process::ExitStatus),
 
-    /// All libc-related errors
+    /// All libc-related errors.
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
-    /// No address found
+    /// No address found.
     #[error("no address returned")]
     NoAddress,
 }
 
-/// A Result alias where the Err case is `getip::Error`.
+/// A `Result` alias where the `Err` variant is `getip::Error`.
 pub type Result<R> = std::result::Result<R, Error>;
 
-/// Any IP Provider
+/// Any IP Provider.
 #[async_trait]
 pub trait Provider: Sized {
-    /// Get the address
+    /// Get the address provided by this provider.
     async fn get_addr(&self) -> Result<IpAddr>;
+    /// Get the `IpType` that this provider gives.
     fn get_type(&self) -> IpType;
 }
 
-/// Receive a IP address with the specified type.
+/// Receive a IP address of family `ip_type` that has a scope of `ip_scope` on an interface named `nic`.
 ///
-/// `ip_type`: Type of the IP address.
-/// `nic`: Name of the interface, Ignored if `ip_type` is Global
+/// If `ip_scope` is `Global`, the address is received from an external service, and `nic` is ignored.
+/// If `nic` is `None`, this function uses the first one returned by the OS.
+///
+/// # Examples
+///
+/// Get an global IPv4 address:
+///
+/// ```
+/// use getip::get_ip;
+/// use getip::{IpScope, IpType, Result};
+///
+/// fn main() -> Result<()> {
+///     let address = get_ip(IpType::Ipv4, IpScope::Global, None)?;
+///     println!("{}", address);
+/// }
+/// ```
+///
+/// # Errors
+///
+/// Any errors returned by the underlying provider is propagated here.
+///
 pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Result<IpAddr> {
     match (ip_type, ip_scope) {
         (IpType::Ipv4, IpScope::Global) => {

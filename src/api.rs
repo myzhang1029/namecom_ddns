@@ -1,5 +1,4 @@
-use log::{debug, trace};
-/// Name.com DNS API helper.
+//! Name.com DNS API helper.
 //
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
 //
@@ -18,6 +17,7 @@ use log::{debug, trace};
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
+use log::{debug, trace};
 use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -104,13 +104,13 @@ pub struct NameComDnsApi {
 /// Name.com DNS API helper
 ///
 /// get_record() and delete_record() are not used by this program, but kept for completeness.
-/// Reference: https://www.name.com/api-docs/DNS
+/// Reference: <https://www.name.com/api-docs/DNS>.
 impl NameComDnsApi {
     /// Create a DNS API helper.
     ///
     /// username: API username.
     /// password: API key.
-    /// api_url: API endpoint like https://api.name.com/.
+    /// api_url: API endpoint like <https://api.name.com/>.
     /// timeout: HTTP timeout in seconds, 0 means no timeout.
     pub fn create(
         username: &str,
