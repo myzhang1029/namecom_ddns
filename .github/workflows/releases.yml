@@ -1,0 +1,43 @@
+name: Build Releases
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - name: macOS_Intel
+          os: macos-latest
+        - name: Linux
+          os: ubuntu-latest
+        - name: Windows
+          os: windows-latest
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v1
+
+    - name: Build release
+      run: cargo build --release
+
+    - run: rm target/release/namecom_ddns.d
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: namecom_ddns-${{ matrix.config.name }}
+        path: target/release/namecom_ddns*
