@@ -4,13 +4,45 @@ use libc;
 use std::ffi::CStr;
 use std::mem;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::ptr;
+#[cfg(unix)]
 use std::str::FromStr;
+#[cfg(windows)]
+use winapi::{
+    shared::{
+        minwindef::{DWORD, LPVOID, ULONG},
+        winerror, ws2def,
+        ws2def::{SOCKADDR, SOCKADDR_IN},
+        ws2ipdef::SOCKADDR_IN6,
+    },
+    um::{
+        heapapi::{GetProcessHeap, HeapAlloc, HeapFree},
+        iphlpapi::GetAdaptersAddresses,
+        iptypes::{
+            GAA_FLAG_INCLUDE_PREFIX, GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_FRIENDLY_NAME,
+            GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES, IP_ADAPTER_ANYCAST_ADDRESS,
+            IP_ADAPTER_UNICAST_ADDRESS,
+        },
+    },
+};
+#[cfg(windows)]
+const INITIAL_ALLOC_SIZE: ULONG = 15000;
+#[cfg(windows)]
+const MAX_TRIES: usize = 5;
+
+/// Fail with errno
+macro_rules! fail_os_err {
+    () => {
+        Err(Error::IoError(std::io::Error::last_os_error()))
+    };
+}
 
 /// Get an address of an interface
-#[cfg(target_family = "unix")]
+#[cfg(unix)]
 unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) -> Result<IpAddr> {
     let sockaddr = addr.ifa_addr;
-    let family =  libc::c_int::from((*sockaddr).sa_family);
+    assert!(!sockaddr.is_null());
+    let family = libc::c_int::from((*sockaddr).sa_family);
     // Has a IP family filter
     if let Some(ip_type) = ip_type {
         if (ip_type == IpType::Ipv4 && family != libc::AF_INET)
@@ -36,7 +68,7 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
             socklen,
             host.as_mut_ptr(),
             libc::NI_MAXHOST,
-            std::ptr::null_mut(),
+            ptr::null_mut(),
             0,
             libc::NI_NUMERICHOST,
         ) == 0
@@ -49,7 +81,7 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
                 _ => unreachable!(),
             })
         } else {
-            Err(Error::IoError(std::io::Error::last_os_error()))
+            fail_os_err!()
         }
     }
 }
@@ -64,7 +96,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         // Save for freeifaddrs()
         let mut save_addrs: *mut libc::ifaddrs = mem::zeroed();
         if libc::getifaddrs(&mut save_addrs) != 0 {
-            return Err(Error::IoError(std::io::Error::last_os_error()));
+            return fail_os_err!();
         }
         let mut addrs = save_addrs;
         // Walk through the linked list
@@ -99,11 +131,118 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
     }
 }
 
+/// Convert pointer to a `SOCKADDR` to Rust IpAddr
+/// `raw_addr` must not be NULL
+#[cfg(windows)]
+unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
+    if (*raw_addr).sa_family as i32 == ws2def::AF_INET {
+        let saddr_in = raw_addr as *mut SOCKADDR_IN;
+        let saddr_in_addr = (*saddr_in).sin_addr.S_un.S_addr();
+        IpAddr::V4(Ipv4Addr::from(*saddr_in_addr))
+    } else {
+        let saddr_in = raw_addr as *mut SOCKADDR_IN6;
+        let saddr_in_addr = (*saddr_in).sin6_addr.u.Byte();
+        IpAddr::V6(Ipv6Addr::from(*saddr_in_addr))
+    }
+}
+
+/// Extract all addresses from an adapter
+/// `adapter` must not be NULL
+#[cfg(windows)]
+unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
+    let mut addresses: Vec<IpAddr> = Vec::new();
+    let mut cur_unicast: *mut IP_ADAPTER_UNICAST_ADDRESS = (*adapter).FirstUnicastAddress;
+    while !cur_unicast.is_null() {
+        let raw_addr = (*cur_unicast).Address.lpSockaddr;
+        assert!(!raw_addr.is_null());
+        addresses.push(sockaddr_to_ipaddr(raw_addr));
+        cur_unicast = (*cur_unicast).Next;
+    }
+    let mut cur_anycast: *mut IP_ADAPTER_ANYCAST_ADDRESS = (*adapter).FirstAnycastAddress;
+    while !cur_anycast.is_null() {
+        let raw_addr = (*cur_anycast).Address.lpSockaddr;
+        assert!(!raw_addr.is_null());
+        addresses.push(sockaddr_to_ipaddr(raw_addr));
+        cur_anycast = (*cur_anycast).Next;
+    }
+    addresses
+}
+
 /// Get all assigned ip addresses of the specified type on the specified interface
 /// Both parameters can be None, in which case that filter is not applied.
+///
+/// See also:
+/// https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersaddresses
 #[cfg(windows)]
 pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Result<Vec<IpAddr>> {
-    todo!("Windows not ready");
+    let family: u32 = match ip_type {
+        Some(IpType::Ipv4) => ws2def::AF_INET,
+        Some(IpType::Ipv6) => ws2def::AF_INET6,
+        None => ws2def::AF_UNSPEC,
+    } as u32;
+    let flags: ULONG = GAA_FLAG_INCLUDE_PREFIX
+        | GAA_FLAG_SKIP_DNS_SERVER
+        | GAA_FLAG_SKIP_MULTICAST
+        | GAA_FLAG_SKIP_FRIENDLY_NAME;
+    // Allocate a 15 KB buffer to start with.
+    let mut allocated_size: ULONG = INITIAL_ALLOC_SIZE;
+    let mut adapter_addresses: *mut IP_ADAPTER_ADDRESSES;
+    let mut return_value: DWORD = 0;
+    unsafe {
+        // Silence maybe uninitialized error
+        adapter_addresses = mem::zeroed();
+        // Try several times to query the resources as suggested by doc
+        for _ in 0..MAX_TRIES {
+            adapter_addresses = HeapAlloc(GetProcessHeap(), 0, allocated_size as usize)
+                as *mut IP_ADAPTER_ADDRESSES;
+            if adapter_addresses.is_null() {
+                return fail_os_err!();
+            }
+            return_value = GetAdaptersAddresses(
+                family,
+                flags,
+                ptr::null_mut(),
+                adapter_addresses,
+                &mut allocated_size,
+            );
+            if return_value == winerror::ERROR_BUFFER_OVERFLOW {
+                HeapFree(GetProcessHeap(), 0, adapter_addresses as LPVOID);
+            } else {
+                break;
+            }
+        }
+    }
+    let result = if return_value == winerror::NO_ERROR {
+        let mut addresses: Vec<IpAddr> = Vec::new();
+        let mut curr_adapter = adapter_addresses;
+        while !curr_adapter.is_null() {
+            unsafe {
+                let adapter_name = (*curr_adapter).AdapterName as *const libc::c_char;
+                let adapter_name = CStr::from_ptr(adapter_name).to_bytes();
+                let adapter_name = std::str::from_utf8_unchecked(adapter_name);
+                if let Some(expected_adapter_name) = iface_name {
+                    if adapter_name == expected_adapter_name {
+                        let mut addrs = extract_addresses(curr_adapter);
+                        addresses.append(&mut addrs);
+                    }
+                } else {
+                    let mut addrs = extract_addresses(curr_adapter);
+                    addresses.append(&mut addrs);
+                }
+                curr_adapter = (*curr_adapter).Next;
+            }
+        }
+        Ok(addresses)
+    } else {
+        // Let Rust interpret the error for me
+        Err(Error::IoError(std::io::Error::from_raw_os_error(
+            return_value as i32,
+        )))
+    };
+    unsafe {
+        HeapFree(GetProcessHeap(), 0, adapter_addresses as LPVOID);
+    }
+    result
 }
 
 #[cfg(test)]

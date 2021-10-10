@@ -2,7 +2,6 @@ name: Rust
 
 on:
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -11,12 +10,26 @@ env:
 
 jobs:
   build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
 
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - name: macOS_Intel Latest
+          os: macos-latest
+        - name: Ubuntu Latest
+          os: ubuntu-latest
+        - name: Windows Latest
+          os: windows-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout source
+      uses: actions/checkout@v2
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Run lints
+      run: cargo clippy -- -D warnings --verbose
