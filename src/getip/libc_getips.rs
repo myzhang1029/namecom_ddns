@@ -26,7 +26,6 @@ use libc;
 #[cfg(windows)]
 use log::error;
 use log::{debug, trace};
-#[cfg(unix)]
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::mem;
@@ -37,7 +36,8 @@ use std::str::FromStr;
 #[cfg(windows)]
 use winapi::{
     shared::{
-        minwindef::{DWORD, LPVOID, ULONG},
+        minwindef::DWORD,
+        ntdef::{ULONG, VOID},
         winerror, ws2def,
         ws2def::{SOCKADDR, SOCKADDR_IN},
         ws2ipdef::SOCKADDR_IN6,
@@ -91,7 +91,8 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
         _ => unreachable!(),
     }
     .try_into()
-    .unwrap();
+    // socklen_t should be sufficient by design
+    .unwrap_or_else(|_| unreachable!());
     // Allocating on stack, so only when necessary
     {
         const MAXHOST: usize = libc::NI_MAXHOST as usize;
@@ -184,12 +185,14 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
 /// `raw_addr` must not be `NULL`.
 #[cfg(windows)]
 unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
-    if (*raw_addr).sa_family as i32 == ws2def::AF_INET {
-        let saddr_in = raw_addr as *mut SOCKADDR_IN;
+    if i32::from((*raw_addr).sa_family) == ws2def::AF_INET {
+        #[allow(clippy::cast_ptr_alignment)]
+        let saddr_in = raw_addr.cast::<SOCKADDR_IN>();
         let saddr_in_addr = (*saddr_in).sin_addr.S_un.S_addr();
         IpAddr::V4(Ipv4Addr::from(*saddr_in_addr))
     } else {
-        let saddr_in = raw_addr as *mut SOCKADDR_IN6;
+        #[allow(clippy::cast_ptr_alignment)]
+        let saddr_in = raw_addr.cast::<SOCKADDR_IN6>();
         let saddr_in_addr = (*saddr_in).sin6_addr.u.Byte();
         IpAddr::V6(Ipv6Addr::from(*saddr_in_addr))
     }
@@ -249,7 +252,10 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         Some(IpType::Ipv4) => ws2def::AF_INET,
         Some(IpType::Ipv6) => ws2def::AF_INET6,
         None => ws2def::AF_UNSPEC,
-    } as u32;
+    }
+    .try_into()
+    // I know the values of those constants, so they are safe.
+    .unwrap_or_else(|_| unreachable!());
     let flags: ULONG = GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_MULTICAST;
     // Allocate a 15 KB buffer to start with.
     let mut allocated_size: ULONG = INITIAL_ALLOC_SIZE;
@@ -261,7 +267,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         // Try several times to query the resources as suggested by doc
         for trial in 0..MAX_TRIES {
             adapter_addresses = HeapAlloc(GetProcessHeap(), 0, allocated_size as usize)
-                as *mut IP_ADAPTER_ADDRESSES;
+                .cast::<IP_ADAPTER_ADDRESSES>();
             if adapter_addresses.is_null() {
                 error!("Raw heap allocation failed");
                 return fail_os_err!();
@@ -278,7 +284,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
                 return_value, trial
             );
             if return_value == winerror::ERROR_BUFFER_OVERFLOW {
-                HeapFree(GetProcessHeap(), 0, adapter_addresses as LPVOID);
+                HeapFree(GetProcessHeap(), 0, adapter_addresses.cast::<VOID>());
             } else {
                 break;
             }
@@ -309,11 +315,12 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
     } else {
         // Let Rust interpret the error for me
         Err(Error::IoError(std::io::Error::from_raw_os_error(
-            return_value as i32,
+            // Windows system error code has range 0-15999
+            return_value.try_into().unwrap_or_else(|_| unreachable!()),
         )))
     };
     unsafe {
-        HeapFree(GetProcessHeap(), 0, adapter_addresses as LPVOID);
+        HeapFree(GetProcessHeap(), 0, adapter_addresses.cast::<VOID>());
     }
     result
 }
