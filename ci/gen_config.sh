@@ -5,7 +5,7 @@ case "$(uname)" in
         iface=en0
         ;;
     Linux)
-        iface="$(ip addr|grep UP|cut -d: -f2|grep -v lo|xargs)"
+        iface="$(ip addr|grep UP|cut -d: -f2|grep -v lo|head -n 1|xargs)"
         ;;
     *)
         iface="lo"
@@ -15,7 +15,7 @@ cat > ci_config.toml << EOF
 # DDNS configuration for ${TEST_NAMECOM_HOST}.${TEST_NAMECOM_ZONE}
 
 [core]
-url = "${TEST_NAMECOM_URL}"
+url = "https://${TEST_NAMECOM_URL}"
 username = "${TEST_NAMECOM_USER}"
 key = "${TEST_NAMECOM_KEY}"
 
