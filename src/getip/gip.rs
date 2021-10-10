@@ -96,6 +96,7 @@ pub enum GlobalIpError {
     /// DNS queries failed.
     #[error(transparent)]
     DnsError(#[from] Box<ResolveError>),
+    /// Cannot resolve the address of the DNS server itself.
     #[error("specified DNS server `{0}' has no address")]
     DnsNoServerError(String),
 }
@@ -112,7 +113,7 @@ macro_rules! make_get_type {
 macro_rules! make_new {
     ($name: ident) => {
         impl $name {
-            /// Create a new $name
+            /// Create a new $name.
             fn new(info: &ProviderInfo, timeout: u64, proxy: &Option<(String, u16)>) -> Self {
                 Self(AbstractProvider {
                     info: info.clone(),
@@ -124,11 +125,14 @@ macro_rules! make_new {
     };
 }
 
-/// Shared fields among all providers
+/// Shared fields among all providers.
 #[derive(Clone, Debug)]
 pub struct AbstractProvider {
+    /// Definition of this provider.
     pub info: ProviderInfo,
+    /// DNS query or HTTP request timeout.
     pub timeout: u64,
+    /// HTTP proxy.
     pub proxy: Option<(String, u16)>,
 }
 
@@ -142,7 +146,7 @@ impl Default for AbstractProvider {
     }
 }
 
-/// Build a new request client with timeout and proxy
+/// Build a new client with `timeout` and `proxy`.
 fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<Client> {
     let client = match (timeout, proxy) {
         (0, None) => Client::new(),
@@ -160,9 +164,7 @@ fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<
     Ok(client)
 }
 
-/// Build a new request with timeout and proxy and return the response
-///
-/// `url`
+/// Build a new GET request to `url` with `timeout` and `proxy` and return the response.
 async fn build_client_get(
     url: &str,
     timeout: u64,
@@ -183,7 +185,7 @@ async fn build_client_get(
     .map_err(GlobalIpError::ReqwestError)?)
 }
 
-/// Create a `getip::Result` containing the IP address
+/// Create a `getip::Result` containing the IP address.
 fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
     Ok(match addr_type {
         IpType::Ipv4 => IpAddr::V4(Ipv4Addr::from_str(addr).map_err(Error::AddrParseError)?),
@@ -191,7 +193,7 @@ fn create_ipaddr(addr: &str, addr_type: IpType) -> Result<IpAddr> {
     })
 }
 
-/// Plain text provider
+/// Plain text provider.
 #[derive(Clone, Debug, Deref)]
 struct ProviderPlain(AbstractProvider);
 
@@ -208,7 +210,7 @@ impl Provider for ProviderPlain {
     make_get_type! {}
 }
 
-/// JSON provider
+/// JSON provider.
 #[derive(Clone, Debug, Deref)]
 pub struct ProviderJson(AbstractProvider);
 
@@ -239,12 +241,13 @@ impl Provider for ProviderJson {
     make_get_type! {}
 }
 
+/// DNS provider.
 #[derive(Clone, Debug, Deref)]
 pub struct ProviderDns(AbstractProvider);
 
 make_new! {ProviderDns}
 
-/// Resolve host to address with a resolver
+/// Resolve host to address with a resolver.
 async fn host_to_addr(
     resolver: TokioAsyncResolver,
     host: &str,
@@ -312,6 +315,7 @@ impl Provider for ProviderDns {
 }
 
 /// Try multiple providers until anyone succeeds
+#[derive(Debug)]
 pub struct ProviderMultiple {
     providers: Vec<ProviderInfo>,
     addr_type: IpType,

@@ -18,18 +18,18 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-extern crate async_trait;
-extern crate derive_deref;
-extern crate libc;
-extern crate log;
-extern crate reqwest;
-extern crate serde;
-extern crate serde_json;
-extern crate thiserror;
-extern crate tokio;
-extern crate trust_dns_resolver;
-#[cfg(windows)]
-extern crate winapi;
+#![warn(
+    clippy::pedantic,
+    missing_docs,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    variant_size_differences
+)]
 
 pub mod gip;
 pub mod hostip;

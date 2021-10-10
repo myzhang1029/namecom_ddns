@@ -1,5 +1,5 @@
-/// Dynamic DNS with the Name.com API.
-/// Run periodically to set DNS records to the local IP.
+//! Dynamic DNS with the Name.com API.
+//! Run periodically to set DNS records to the local IP.
 //
 //  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
 //
@@ -18,15 +18,19 @@
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
-extern crate clap;
-extern crate futures;
-extern crate log;
-extern crate reqwest;
-extern crate serde;
-extern crate serde_json;
-extern crate simplelog;
-extern crate tokio;
-extern crate toml;
+
+#![warn(
+    clippy::pedantic,
+    missing_docs,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    variant_size_differences
+)]
 
 mod api;
 mod config;

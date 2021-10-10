@@ -38,4 +38,4 @@ jobs:
       run: cargo test --verbose
 
     - name: Run lints
-      run: cargo clippy -- -D warnings -W clippy::pedantic --verbose
+      run: cargo clippy -- -D warnings --verbose

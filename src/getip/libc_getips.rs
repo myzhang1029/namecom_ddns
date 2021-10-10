@@ -145,8 +145,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         while !addrs.is_null() {
             let addr = *addrs;
             // Interface name
-            let ifa_name = addr.ifa_name as *const libc::c_char;
-            let ifa_name = CStr::from_ptr(ifa_name).to_bytes();
+            let ifa_name = CStr::from_ptr(addr.ifa_name).to_bytes();
             let ifa_name = std::str::from_utf8_unchecked(ifa_name);
             trace!("Got interface {:?}", ifa_name);
             // Filter iface name
