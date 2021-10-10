@@ -1,4 +1,4 @@
-name: Rust
+name: Build Releases
 
 on:
   push:
@@ -31,11 +31,13 @@ jobs:
     - name: Rust Cache
       uses: Swatinem/rust-cache@v1
 
-    - name: Build
-      run: cargo build --verbose
+    - name: Build release
+      run: cargo build --release
 
-    - name: Run tests
-      run: cargo test --verbose
+    - run: rm target/release/namecom_ddns.d
 
-    - name: Run lints
-      run: cargo clippy -- -D warnings -W clippy::pedantic --verbose
+    - name: Upload binary
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: namecom_ddns-${{ matrix.config.name }}
+        path: target/release/namecom_ddns*
