@@ -17,11 +17,11 @@ jobs:
       fail-fast: false
       matrix:
         config:
-        - name: macOS_Intel Latest
+        - name: macOS_Intel
           os: macos-latest
-        - name: Ubuntu Latest
+        - name: Linux
           os: ubuntu-latest
-        - name: Windows Latest
+        - name: Windows
           os: windows-latest
 
     steps:
@@ -33,3 +33,11 @@ jobs:
       run: cargo test --verbose
     - name: Run lints
       run: cargo clippy -- -D warnings --verbose
+    - name: Build release
+      run: cargo build --release
+    - run: rm target/release/namecom_ddns.d
+    - name: Upload binary
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: namecom_ddns-${{ matrix.config.name }}
+        path: target/release/namecom_ddns*
