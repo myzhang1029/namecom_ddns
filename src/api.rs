@@ -151,6 +151,7 @@ impl NameComDnsApi {
             .with_param(Method::GET, &format!("domains/{}/records", domain))
             .send()
             .await?
+            .error_for_status()?
             .json::<ListingResponse>()
             .await?)
     }
@@ -166,6 +167,7 @@ impl NameComDnsApi {
             .with_param(Method::GET, &format!("domains/{}/records/{}", domain, id))
             .send()
             .await?
+            .error_for_status()?
             .json::<NameComRecord>()
             .await?)
     }
@@ -186,6 +188,7 @@ impl NameComDnsApi {
             .json(&record)
             .send()
             .await?
+            .error_for_status()?
             .json::<NameComRecord>()
             .await?)
     }
@@ -208,6 +211,7 @@ impl NameComDnsApi {
             .json(&record)
             .send()
             .await?
+            .error_for_status()?
             .json::<NameComRecord>()
             .await?)
     }
@@ -222,7 +226,8 @@ impl NameComDnsApi {
             &format!("domains/{}/records/{}", domain, id),
         )
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
         Ok(())
     }
 
