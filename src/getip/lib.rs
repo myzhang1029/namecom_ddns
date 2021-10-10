@@ -117,9 +117,11 @@ pub trait Provider: Sized {
 /// use getip::get_ip;
 /// use getip::{IpScope, IpType, Result};
 ///
-/// fn main() -> Result<()> {
-///     let address = get_ip(IpType::Ipv4, IpScope::Global, None)?;
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let address = get_ip(IpType::Ipv4, IpScope::Global, None).await?;
 ///     println!("{}", address);
+///     Ok(())
 /// }
 /// ```
 ///
