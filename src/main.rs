@@ -18,6 +18,7 @@
 //  You should have received a copy of the GNU Affero General Public License
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
+extern crate clap;
 extern crate futures;
 extern crate log;
 extern crate reqwest;
@@ -30,18 +31,47 @@ extern crate toml;
 mod api;
 mod config;
 
+use clap::{crate_version, App, Arg};
 use getip::{get_ip, IpScope, IpType};
 use log::{debug, error, info};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::process::exit;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::{join, sync::RwLock, time};
 
 #[tokio::main]
 async fn main() {
-    // Currently the path is hard-coded
-    let configuration = config::NameComDdnsConfig::from_file("namecom_ddns.toml").unwrap();
+    let matches = App::new("Name.com DDNS")
+        .version(crate_version!())
+        .author("Zhang Maiyun <myzhang1029@hotmail.com")
+        .about("Query IP addresses and update DNS records with Name.com API")
+        .arg(
+            Arg::with_name("config")
+                .short("f")
+                .long("config-file")
+                .help("Set a custom config file")
+                .takes_value(true)
+                .default_value("namecom_ddns.toml"),
+        )
+        .arg(
+            Arg::with_name("oneshot")
+                .short("s")
+                .long("oneshot")
+                .help("Only check and update once"),
+        )
+        .arg(
+            Arg::with_name("loglevel")
+                .short("l")
+                .long("log-level")
+                .help("Set log level")
+                .takes_value(true)
+                .possible_values(&["off", "error", "warn", "info", "debug", "trace"])
+                .default_value("info"),
+        )
+        .get_matches();
 
     // Initialize logger
     let log_format = ConfigBuilder::new()
@@ -49,14 +79,18 @@ async fn main() {
         .set_time_format_str("[%Y-%m-%d %H:%M:%S]")
         .build();
 
+    // There unwrap()s are guaranteed to succeed by clap
     if let Err(e) = TermLogger::init(
-        LevelFilter::Info,
+        LevelFilter::from_str(matches.value_of("loglevel").unwrap()).unwrap(),
         log_format,
         TerminalMode::Mixed,
         ColorChoice::Auto,
     ) {
         panic!("Cannot create logger: {:?}", e);
     }
+
+    let configuration = config::NameComDdnsConfig::from_file(matches.value_of("config").unwrap())
+        .expect("Cannot open configuration");
 
     // Check and update the DNS according to the config
     let mut interval = time::interval(time::Duration::from_secs(configuration.core.interval * 60));
@@ -70,18 +104,22 @@ async fn main() {
         configuration.core.timeout,
     )
     .unwrap();
-    let app = App::new(&configuration.records, &client);
-    app.updater_loop(&mut interval).await;
+    let app = DdnsApp::new(&configuration.records, &client);
+    if matches.is_present("oneshot") {
+        exit(if app.update_once().await { 0 } else { 1 });
+    } else {
+        app.updater_loop(&mut interval).await;
+    }
 }
 
 /// Struct containing the application's data
-struct App<'a> {
+struct DdnsApp<'a> {
     client: &'a api::NameComDnsApi,
     records: &'a [config::NameComConfigRecord],
     id_cache: Arc<RwLock<HashMap<config::NameComConfigRecord, i32>>>,
 }
 
-impl<'a> App<'a> {
+impl<'a> DdnsApp<'a> {
     fn new(records: &'a [config::NameComConfigRecord], client: &'a api::NameComDnsApi) -> Self {
         Self {
             client,
@@ -90,18 +128,24 @@ impl<'a> App<'a> {
         }
     }
 
+    /// Update every record specified
+    async fn update_once(&self) -> bool {
+        futures::future::join_all(
+            self.records
+                .iter()
+                .map(|item| self.update_single_item(item)),
+        )
+        .await
+        .iter()
+        .all(|a| *a)
+    }
+
     /// Main loop for updating every entry
     async fn updater_loop(&self, interval: &mut time::Interval) {
         loop {
             interval.tick().await;
             info!("Checking and updating addresses");
-            // Update each record
-            futures::future::join_all(
-                self.records
-                    .iter()
-                    .map(|item| self.update_single_item(item)),
-            )
-            .await;
+            self.update_once().await;
             info!("Finished checking and updating addresses");
         }
     }
@@ -134,7 +178,7 @@ impl<'a> App<'a> {
     }
 
     /// Check and update a single record item
-    async fn update_single_item(&self, item: &config::NameComConfigRecord) {
+    async fn update_single_item(&self, item: &config::NameComConfigRecord) -> bool {
         let (answer, old) = join!(self.get_ip_by_item(item), self.get_id(item));
 
         if let Ok(addr) = answer {
@@ -161,6 +205,9 @@ impl<'a> App<'a> {
                             "Failed to update the record for {} via API: {:?}",
                             item.host, error
                         );
+                        false
+                    } else {
+                        true
                     }
                 }
                 Err(error) => {
@@ -168,14 +215,16 @@ impl<'a> App<'a> {
                         "Failed to query records of {} via API: {:?}",
                         item.host, error
                     );
+                    false
                 }
-            };
+            }
         } else {
             error!(
                 "Failed to receive the IP for {}: {:?}",
                 item.host,
                 answer.unwrap_err()
             );
+            false
         }
     }
 
