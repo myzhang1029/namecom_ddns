@@ -1,0 +1,45 @@
+name: Integration Test
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - name: macOS_Intel
+          os: macos-latest
+        - name: Linux
+          os: ubuntu-latest
+        - name: Windows
+          os: windows-latest
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v1
+
+    - name: Run integration test
+      env:
+        TEST_NAMECOM_URL: ${{ secrets.TEST_NAMECOM_URL }}
+        TEST_NAMECOM_HOST: ${{ secrets.TEST_NAMECOM_HOST }}-${{ github.run_id }}-${{ github.run_attempt }}
+        TEST_NAMECOM_ZONE: ${{ secrets.TEST_NAMECOM_ZONE }}
+        TEST_NAMECOM_USER: ${{ secrets.TEST_NAMECOM_USER }}
+        TEST_NAMECOM_KEY: ${{ secrets.TEST_NAMECOM_KEY }}
+      run: |
+        bash ci/gen_config.sh
+        cargo run -- -sf ci_config.toml -l debug
+        rm ci_config.toml
+        bash ci/validate_and_cleanup.sh
