@@ -65,10 +65,10 @@ macro_rules! fail_os_err {
 
 /// Get an address of an interface
 #[cfg(unix)]
-unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) -> Result<IpAddr> {
+fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) -> Result<IpAddr> {
     let sockaddr = addr.ifa_addr;
     assert!(!sockaddr.is_null());
-    let family = libc::c_int::from((*sockaddr).sa_family);
+    let family = libc::c_int::from(unsafe { *sockaddr }.sa_family);
     // Has a IP family filter
     if let Some(ip_type) = ip_type {
         if (ip_type == IpType::Ipv4 && family != libc::AF_INET)
@@ -97,18 +97,20 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
     {
         const MAXHOST: usize = libc::NI_MAXHOST as usize;
         let mut host: [libc::c_char; MAXHOST] = [0; MAXHOST];
-        if libc::getnameinfo(
-            sockaddr,
-            socklen,
-            host.as_mut_ptr(),
-            libc::NI_MAXHOST,
-            ptr::null_mut(),
-            0,
-            libc::NI_NUMERICHOST,
-        ) == 0
+        if unsafe {
+            libc::getnameinfo(
+                sockaddr,
+                socklen,
+                host.as_mut_ptr(),
+                libc::NI_MAXHOST,
+                ptr::null_mut(),
+                0,
+                libc::NI_NUMERICHOST,
+            )
+        } == 0
         {
-            let address = CStr::from_ptr(host.as_ptr()).to_bytes();
-            let address = std::str::from_utf8_unchecked(address);
+            let address = unsafe { CStr::from_ptr(host.as_ptr()).to_bytes() };
+            let address = unsafe { std::str::from_utf8_unchecked(address) };
             Ok(match family {
                 libc::AF_INET => IpAddr::V4(Ipv4Addr::from_str(address)?),
                 libc::AF_INET6 => IpAddr::V6(Ipv6Addr::from_str(address)?),
@@ -134,44 +136,42 @@ unsafe fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) ->
 pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Result<Vec<IpAddr>> {
     // Hold all found addresses
     let mut result: Vec<IpAddr> = Vec::new();
-    unsafe {
-        // Save for freeifaddrs()
-        let mut save_addrs: *mut libc::ifaddrs = mem::zeroed();
-        if libc::getifaddrs(&mut save_addrs) != 0 {
-            return fail_os_err!();
-        }
-        let mut addrs = save_addrs;
-        // Walk through the linked list
-        while !addrs.is_null() {
-            let addr = *addrs;
-            // Interface name
-            let ifa_name = CStr::from_ptr(addr.ifa_name).to_bytes();
-            let ifa_name = std::str::from_utf8_unchecked(ifa_name);
-            trace!("Got interface {:?}", ifa_name);
-            // Filter iface name
-            let address = iface_name.map_or_else(
-                || get_addr_for_ifa_unix(addr, ip_type),
-                |expected_ifa_name| {
-                    if ifa_name == expected_ifa_name {
-                        get_addr_for_ifa_unix(addr, ip_type)
-                    } else {
-                        Err(Error::NoAddress)
-                    }
-                },
-            );
-            if let Ok(address) = address {
-                trace!(
-                    "Found good addresses of type {:?} for interface {:?}: {:?}",
-                    ip_type,
-                    iface_name,
-                    address
-                );
-                result.push(address);
-            }
-            addrs = addr.ifa_next;
-        }
-        libc::freeifaddrs(save_addrs);
+    // Save for freeifaddrs()
+    let mut save_addrs: *mut libc::ifaddrs = unsafe { mem::zeroed() };
+    if unsafe { libc::getifaddrs(&mut save_addrs) } != 0 {
+        return fail_os_err!();
     }
+    let mut addrs = save_addrs;
+    // Walk through the linked list
+    while !addrs.is_null() {
+        let addr = unsafe { *addrs };
+        // Interface name
+        let ifa_name = unsafe { CStr::from_ptr(addr.ifa_name).to_bytes() };
+        let ifa_name = unsafe { std::str::from_utf8_unchecked(ifa_name) };
+        trace!("Got interface {:?}", ifa_name);
+        // Filter iface name
+        let address = iface_name.map_or_else(
+            || get_addr_for_ifa_unix(addr, ip_type),
+            |expected_ifa_name| {
+                if ifa_name == expected_ifa_name {
+                    get_addr_for_ifa_unix(addr, ip_type)
+                } else {
+                    Err(Error::NoAddress)
+                }
+            },
+        );
+        if let Ok(address) = address {
+            trace!(
+                "Found good addresses of type {:?} for interface {:?}: {:?}",
+                ip_type,
+                iface_name,
+                address
+            );
+            result.push(address);
+        }
+        addrs = addr.ifa_next;
+    }
+    unsafe { libc::freeifaddrs(save_addrs) };
     if result.is_empty() {
         debug!("No address becase none of the interfaces has a matching one");
         Err(Error::NoAddress)
@@ -183,16 +183,16 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
 /// Convert raw pointer `raw_addr` of type `*SOCKADDR` to Rust `IpAddr`.
 /// `raw_addr` must not be `NULL`.
 #[cfg(windows)]
-unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
-    if i32::from((*raw_addr).sa_family) == ws2def::AF_INET {
+fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
+    if i32::from(unsafe { *raw_addr }.sa_family) == ws2def::AF_INET {
         #[allow(clippy::cast_ptr_alignment)]
         let saddr_in = raw_addr.cast::<SOCKADDR_IN>();
-        let saddr_in_addr = (*saddr_in).sin_addr.S_un.S_addr();
+        let saddr_in_addr = unsafe { (*saddr_in).sin_addr.S_un.S_addr() };
         IpAddr::V4(Ipv4Addr::from(*saddr_in_addr))
     } else {
         #[allow(clippy::cast_ptr_alignment)]
         let saddr_in = raw_addr.cast::<SOCKADDR_IN6>();
-        let saddr_in_addr = (*saddr_in).sin6_addr.u.Byte();
+        let saddr_in_addr = unsafe { (*saddr_in).sin6_addr.u.Byte() };
         IpAddr::V6(Ipv6Addr::from(*saddr_in_addr))
     }
 }
@@ -200,33 +200,33 @@ unsafe fn sockaddr_to_ipaddr(raw_addr: *mut SOCKADDR) -> IpAddr {
 /// Extract all addresses from an adapter.
 /// `adapter` must not be `NULL`.
 #[cfg(windows)]
-unsafe fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
+fn extract_addresses(adapter: *mut IP_ADAPTER_ADDRESSES) -> Vec<IpAddr> {
     let mut addresses: Vec<IpAddr> = Vec::new();
-    let mut cur_unicast: *mut IP_ADAPTER_UNICAST_ADDRESS = (*adapter).FirstUnicastAddress;
+    let mut cur_unicast: *mut IP_ADAPTER_UNICAST_ADDRESS = unsafe { *adapter }.FirstUnicastAddress;
     while !cur_unicast.is_null() {
-        let raw_addr = (*cur_unicast).Address.lpSockaddr;
+        let raw_addr = unsafe { *cur_unicast }.Address.lpSockaddr;
         assert!(!raw_addr.is_null());
         let ipaddr = sockaddr_to_ipaddr(raw_addr);
         debug!(
             "Found good unicast address on adapter {:?}: {:?}",
-            (*adapter).FriendlyName,
+            unsafe { *adapter }.FriendlyName,
             ipaddr
         );
         addresses.push(ipaddr);
-        cur_unicast = (*cur_unicast).Next;
+        cur_unicast = unsafe { *cur_unicast }.Next;
     }
-    let mut cur_anycast: *mut IP_ADAPTER_ANYCAST_ADDRESS = (*adapter).FirstAnycastAddress;
+    let mut cur_anycast: *mut IP_ADAPTER_ANYCAST_ADDRESS = unsafe { *adapter }.FirstAnycastAddress;
     while !cur_anycast.is_null() {
-        let raw_addr = (*cur_anycast).Address.lpSockaddr;
+        let raw_addr = unsafe { *cur_anycast }.Address.lpSockaddr;
         assert!(!raw_addr.is_null());
         let ipaddr = sockaddr_to_ipaddr(raw_addr);
         debug!(
             "Found good anycast address on adapter {:?}: {:?}",
-            (*adapter).FriendlyName,
+            unsafe { *adapter }.FriendlyName,
             ipaddr
         );
         addresses.push(ipaddr);
-        cur_anycast = (*cur_anycast).Next;
+        cur_anycast = unsafe { *cur_anycast }.Next;
     }
     addresses
 }
@@ -260,55 +260,53 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
     let mut allocated_size: ULONG = INITIAL_ALLOC_SIZE;
     let mut adapter_addresses: *mut IP_ADAPTER_ADDRESSES;
     let mut return_value: DWORD = 0;
-    unsafe {
-        // Silence maybe uninitialized error
-        adapter_addresses = mem::zeroed();
-        // Try several times to query the resources as suggested by doc
-        for trial in 0..MAX_TRIES {
-            adapter_addresses = HeapAlloc(GetProcessHeap(), 0, allocated_size as usize)
-                .cast::<IP_ADAPTER_ADDRESSES>();
-            if adapter_addresses.is_null() {
-                error!("Raw heap allocation failed");
-                return fail_os_err!();
-            }
-            return_value = GetAdaptersAddresses(
+    // Silence maybe uninitialized error
+    adapter_addresses = unsafe { mem::zeroed() };
+    // Try several times to query the resources as suggested by doc
+    for trial in 0..MAX_TRIES {
+        adapter_addresses = unsafe { HeapAlloc(GetProcessHeap(), 0, allocated_size as usize) }
+            .cast::<IP_ADAPTER_ADDRESSES>();
+        if adapter_addresses.is_null() {
+            error!("Raw heap allocation failed");
+            return fail_os_err!();
+        }
+        return_value = unsafe {
+            GetAdaptersAddresses(
                 family,
                 flags,
                 ptr::null_mut(),
                 adapter_addresses,
                 &mut allocated_size,
-            );
-            debug!(
-                "GetAdaptersAddresses returned {:?} on the {}th trial",
-                return_value, trial
-            );
-            if return_value == winerror::ERROR_BUFFER_OVERFLOW {
-                HeapFree(GetProcessHeap(), 0, adapter_addresses.cast::<VOID>());
-            } else {
-                break;
-            }
+            )
+        };
+        debug!(
+            "GetAdaptersAddresses returned {:?} on the {}th trial",
+            return_value, trial
+        );
+        if return_value == winerror::ERROR_BUFFER_OVERFLOW {
+            unsafe { HeapFree(GetProcessHeap(), 0, adapter_addresses.cast::<VOID>()) };
+        } else {
+            break;
         }
     }
     let result = if return_value == winerror::NO_ERROR {
         let mut addresses: Vec<IpAddr> = Vec::new();
         let mut curr_adapter = adapter_addresses;
         while !curr_adapter.is_null() {
-            unsafe {
-                let adapter_name = (*curr_adapter).FriendlyName as *const libc::c_char;
-                let adapter_name = CStr::from_ptr(adapter_name).to_bytes();
-                let adapter_name = std::str::from_utf8_unchecked(adapter_name);
-                trace!("Examining adpater {:?}", adapter_name);
-                if let Some(expected_adapter_name) = iface_name {
-                    if adapter_name == expected_adapter_name {
-                        let mut addrs = extract_addresses(curr_adapter);
-                        addresses.append(&mut addrs);
-                    }
-                } else {
+            let adapter_name = unsafe { *curr_adapter }.FriendlyName as *const libc::c_char;
+            let adapter_name = unsafe { CStr::from_ptr(adapter_name).to_bytes() };
+            let adapter_name = unsafe { std::str::from_utf8_unchecked(adapter_name) };
+            trace!("Examining adpater {:?}", adapter_name);
+            if let Some(expected_adapter_name) = iface_name {
+                if adapter_name == expected_adapter_name {
                     let mut addrs = extract_addresses(curr_adapter);
                     addresses.append(&mut addrs);
                 }
-                curr_adapter = (*curr_adapter).Next;
+            } else {
+                let mut addrs = extract_addresses(curr_adapter);
+                addresses.append(&mut addrs);
             }
+            curr_adapter = unsafe { *curr_adapter }.Next;
         }
         if addresses.is_empty() {
             debug!("No address becase none of the adapters has a matching one");
