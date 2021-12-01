@@ -114,6 +114,8 @@ impl Provider for LocalIpv6CommandProvider {
 /// Run a chain of ip/ifconfig commands and returns the output of first succeeded one
 async fn chain_ip_cmd_until_succeed(nic: &str) -> Result<Output> {
     // TODO: netsh.exe IPv6 backend
+    // netsh interface ipv6 show addresses interface="Ethernet" level=normal
+    // TODO: Enable IPv4 to be queried like this
     let commands = [
         // First try to use `ip`
         (
