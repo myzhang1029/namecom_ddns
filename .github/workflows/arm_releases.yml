@@ -43,7 +43,7 @@ jobs:
         cargo build --release --target ${{ matrix.config.rust_target }}
 
     - name: Remove interferring files
-      run: rm -rf target/release/namecom_ddns.*
+      run: bash -c "rm -rf target/release/namecom_ddns.*"
 
     - name: Upload binary
       uses: actions/upload-artifact@v2.2.4

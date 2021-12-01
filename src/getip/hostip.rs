@@ -164,7 +164,7 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> Result<Output> {
     Err(last_error.unwrap())
 }
 
-/// Force-cast $id: IpAddr to Ipv4Addr
+/// Force-cast $id: `IpAddr` to `Ipv4Addr`
 macro_rules! cast_ipv4 {
     ($id: expr) => {
         if let IpAddr::V4(ip) = $id {
@@ -175,7 +175,7 @@ macro_rules! cast_ipv4 {
     };
 }
 
-/// Force-cast $id: IpAddr to Ipv6Addr
+/// Force-cast $id: `IpAddr` to `Ipv6Addr`
 macro_rules! cast_ipv6 {
     ($id: expr) => {
         if let IpAddr::V6(ip) = $id {
