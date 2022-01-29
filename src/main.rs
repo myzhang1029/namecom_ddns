@@ -53,22 +53,22 @@ async fn main() {
         .author("Zhang Maiyun <myzhang1029@hotmail.com")
         .about("Query IP addresses and update DNS records with Name.com API")
         .arg(
-            Arg::with_name("config")
-                .short("f")
+            Arg::new("config")
+                .short('f')
                 .long("config-file")
                 .help("Set a custom config file")
                 .takes_value(true)
                 .default_value("namecom_ddns.toml"),
         )
         .arg(
-            Arg::with_name("oneshot")
-                .short("s")
+            Arg::new("oneshot")
+                .short('s')
                 .long("oneshot")
                 .help("Only check and update once"),
         )
         .arg(
-            Arg::with_name("loglevel")
-                .short("l")
+            Arg::new("loglevel")
+                .short('l')
                 .long("log-level")
                 .help("Set log level")
                 .takes_value(true)
