@@ -1,6 +1,6 @@
 [package]
 name = "namecom_ddns"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Zhang Maiyun <myzhang1029@hotmail.com>", "dalance <dalance@gmail.com>"]
 edition = "2021"
 description = "Query IP addresses and update DNS records with Name.com API"
