@@ -40,10 +40,11 @@ use getip::{get_ip, IpScope, IpType};
 use log::{debug, error, info};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::process::exit;
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::process::Command;
 use tokio::{join, sync::RwLock, time};
 
 #[tokio::main]
@@ -113,6 +114,24 @@ async fn main() {
         exit(if app.update_once().await { 0 } else { 1 });
     } else {
         app.updater_loop(&mut interval).await;
+    }
+}
+
+/// Get an IP address from a local command directly
+async fn get_ip_from_command(ip_type: IpType, command: &[String]) -> Result<IpAddr, getip::Error> {
+    match Command::new(&command[0]).args(&command[1..]).output().await {
+        Ok(output) => {
+            let ip_str = String::from_utf8(output.stdout)?;
+            let ip = match ip_type {
+                IpType::Ipv4 => IpAddr::V4(Ipv4Addr::from_str(&ip_str)?),
+                IpType::Ipv6 => IpAddr::V6(Ipv6Addr::from_str(&ip_str)?),
+            };
+            Ok(ip)
+        }
+        Err(error) => {
+            error!("Command {:?} failed to be executed: {}", command, error);
+            Err(getip::Error::IoError(error))
+        }
     }
 }
 
@@ -245,10 +264,58 @@ impl<'a> DdnsApp<'a> {
                 get_ip(IpType::Ipv6, IpScope::Global, None).await
             }
             (api::RecordType::A, config::NameComConfigMethod::Local) => {
-                get_ip(IpType::Ipv4, IpScope::Local, Some(&item.interface)).await
+                if item.interface.is_some() {
+                    get_ip(
+                        IpType::Ipv4,
+                        IpScope::Local,
+                        Some(item.interface.as_ref().unwrap()),
+                    )
+                    .await
+                } else {
+                    error!(
+                        "Record {} is local but has no interface specified",
+                        item.host
+                    );
+                    Err(getip::Error::NoAddress)
+                }
             }
             (api::RecordType::Aaaa, config::NameComConfigMethod::Local) => {
-                get_ip(IpType::Ipv6, IpScope::Local, Some(&item.interface)).await
+                if item.interface.is_some() {
+                    get_ip(
+                        IpType::Ipv6,
+                        IpScope::Local,
+                        Some(item.interface.as_ref().unwrap()),
+                    )
+                    .await
+                } else {
+                    error!(
+                        "Record {} is local but has no interface specified",
+                        item.host
+                    );
+                    Err(getip::Error::NoAddress)
+                }
+            }
+            (api::RecordType::A, config::NameComConfigMethod::Script) => {
+                if item.command.is_some() {
+                    get_ip_from_command(IpType::Ipv4, item.command.as_ref().unwrap()).await
+                } else {
+                    error!(
+                        "Record {} is script but has no command specified",
+                        item.host
+                    );
+                    Err(getip::Error::NoAddress)
+                }
+            }
+            (api::RecordType::Aaaa, config::NameComConfigMethod::Script) => {
+                if item.command.is_some() {
+                    get_ip_from_command(IpType::Ipv6, item.command.as_ref().unwrap()).await
+                } else {
+                    error!(
+                        "Record {} is script but has no command specified",
+                        item.host
+                    );
+                    Err(getip::Error::NoAddress)
+                }
             }
             _ => panic!(
                 "Record type {} is not one of \"A\" and \"AAAA\"",

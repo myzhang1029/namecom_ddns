@@ -59,6 +59,8 @@ pub enum NameComConfigMethod {
     Global,
     #[serde(rename = "local")]
     Local,
+    #[serde(rename = "script")]
+    Script,
 }
 
 /// Record spec
@@ -70,7 +72,8 @@ pub struct NameComConfigRecord {
     pub rec_type: RecordType,
     pub ttl: u32,
     pub method: NameComConfigMethod,
-    pub interface: String,
+    pub interface: Option<String>,
+    pub command: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,7 +125,16 @@ mod test {
             NameComConfigMethod::Global,
             "record[0].method mismatch"
         );
-        assert_eq!(record1.interface, "en0", "record[0].interface mismatch");
+        assert_eq!(
+            record1.interface.as_ref().unwrap(),
+            "en0",
+            "record[0].interface mismatch"
+        );
+        assert_eq!(
+            record1.command.as_deref().unwrap(),
+            vec!["/bin/get_an_ip"],
+            "record[0].command mismatch"
+        );
         // Record 2
         assert_eq!(record2.host, "ddns", "record[0].host mismatch");
         assert_eq!(record2.zone, "example.com", "record[0].zone mismatch");
@@ -137,6 +149,10 @@ mod test {
             NameComConfigMethod::Local,
             "record[0].method mismatch"
         );
-        assert_eq!(record2.interface, "en0", "record[0].interface mismatch");
+        assert_eq!(
+            record2.interface.as_ref().unwrap(),
+            "en0",
+            "record[0].interface mismatch"
+        );
     }
 }

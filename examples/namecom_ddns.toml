@@ -16,11 +16,17 @@ type = "A"
 ttl = 300
 # "global" for an address as seen from the internet
 # "local" for an address on the NIC
+# "script" to run a custom command
 method = "global"
-# Ignored if method is "global"
+# Only if method is "local"
 # On Windows, this is the "Friendly Name" of the adapter.
 # Shown by `ipconfig` or `netsh interface ip show config`
 interface = "en0"
+# Only if method is "script"
+# Must be an array of strings. No shell is implicitly used.
+# If the stdout of this command is not an IP address of the specified family,
+# this update is skipped.
+command = ["/bin/get_an_ip"]
 
 [[records]]
 host = "ddns"
