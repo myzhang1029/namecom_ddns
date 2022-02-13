@@ -121,12 +121,20 @@ async fn main() {
 async fn get_ip_from_command(ip_type: IpType, command: &[String]) -> Result<IpAddr, getip::Error> {
     match Command::new(&command[0]).args(&command[1..]).output().await {
         Ok(output) => {
-            let ip_str = String::from_utf8(output.stdout)?;
-            let ip = match ip_type {
-                IpType::Ipv4 => IpAddr::V4(Ipv4Addr::from_str(&ip_str)?),
-                IpType::Ipv6 => IpAddr::V6(Ipv6Addr::from_str(&ip_str)?),
-            };
-            Ok(ip)
+            if output.status.success() {
+                let ip_str = String::from_utf8(output.stdout)?;
+                let ip = match ip_type {
+                    IpType::Ipv4 => IpAddr::V4(Ipv4Addr::from_str(ip_str.trim())?),
+                    IpType::Ipv6 => IpAddr::V6(Ipv6Addr::from_str(ip_str.trim())?),
+                };
+                Ok(ip)
+            } else {
+                error!(
+                    "Command {:?} failed with status: {}",
+                    command, output.status
+                );
+                Err(getip::Error::NonZeroExit(output.status))
+            }
         }
         Err(error) => {
             error!("Command {:?} failed to be executed: {}", command, error);

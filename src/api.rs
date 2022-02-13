@@ -70,14 +70,18 @@ pub enum RecordType {
 pub struct NameComRecord {
     id: i32,
     #[serde(rename = "domainName")]
+    #[allow(unused)]
     domain_name: String,
     // None or "@" means apex
     host: Option<String>,
     fqdn: String,
+    #[allow(unused)]
     answer: String,
     #[serde(rename = "type")]
     rec_type: RecordType,
+    #[allow(unused)]
     ttl: u32,
+    #[allow(unused)]
     // Only for MX or SRV
     priority: Option<u32>,
 }

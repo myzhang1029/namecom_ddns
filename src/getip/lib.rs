@@ -41,6 +41,9 @@
     unused_qualifications,
     variant_size_differences
 )]
+#![allow(
+    clippy::no_effect_underscore_binding
+)]
 
 pub mod gip;
 pub mod hostip;

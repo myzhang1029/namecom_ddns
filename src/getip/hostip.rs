@@ -73,7 +73,7 @@ impl Provider for LocalIpv6CommandProvider {
             // A shorter one is certainly not an entry
             // Check if the label is "inet6"
             if fields.len() > 1 && fields[0] == "inet6" {
-                let address_stripped = match fields[1].split_once("/") {
+                let address_stripped = match fields[1].split_once('/') {
                     // `ip` includes the prefix length in the address
                     Some((addr, _prefixlen)) => addr,
                     // but `ifconfig` doesn't
