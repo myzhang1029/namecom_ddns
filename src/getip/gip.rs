@@ -401,25 +401,25 @@ pub const DEFAULT_PROVIDERS: &str = r#"[
     "method": "plain",
     "name": "ipv6-test",
     "type": "IPv4",
-    "url": "http://v4.ipv6-test.com/api/myip.php"
+    "url": "https://v4.ipv6-test.com/api/myip.php"
   },
   {
     "method": "plain",
     "name": "ipv6-test",
     "type": "IPv6",
-    "url": "http://v6.ipv6-test.com/api/myip.php"
+    "url": "https://v6.ipv6-test.com/api/myip.php"
   },
   {
     "method": "plain",
     "name": "ident.me",
     "type": "IPv4",
-    "url": "http://v4.ident.me/"
+    "url": "https://v4.ident.me/"
   },
   {
     "method": "plain",
     "name": "ident.me",
     "type": "IPv6",
-    "url": "http://v6.ident.me/"
+    "url": "https://v6.ident.me/"
   },
   {
     "key": "ip",
@@ -427,7 +427,7 @@ pub const DEFAULT_PROVIDERS: &str = r#"[
     "name": "test-ipv6",
     "padding": "callback",
     "type": "IPv4",
-    "url": "http://ipv4.test-ipv6.com/ip/"
+    "url": "https://ipv4.test-ipv6.com/ip/"
   },
   {
     "key": "ip",
@@ -435,7 +435,7 @@ pub const DEFAULT_PROVIDERS: &str = r#"[
     "name": "test-ipv6",
     "padding": "callback",
     "type": "IPv6",
-    "url": "http://ipv6.test-ipv6.com/ip/"
+    "url": "https://ipv6.test-ipv6.com/ip/"
   },
   {
     "method": "dns",
