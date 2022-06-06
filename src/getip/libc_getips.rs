@@ -257,10 +257,9 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
     let flags: ULONG = GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_MULTICAST;
     // Allocate a 15 KB buffer to start with.
     let mut allocated_size: ULONG = INITIAL_ALLOC_SIZE;
-    let mut adapter_addresses: *mut IP_ADAPTER_ADDRESSES;
-    let mut return_value: DWORD = 0;
     // Silence maybe uninitialized error
-    adapter_addresses = unsafe { mem::zeroed() };
+    let mut adapter_addresses: *mut IP_ADAPTER_ADDRESSES = unsafe { mem::zeroed() };
+    let mut return_value: DWORD = 0;
     // Try several times to query the resources as suggested by doc
     for trial in 0..MAX_TRIES {
         adapter_addresses = unsafe { HeapAlloc(GetProcessHeap(), 0, allocated_size as usize) }
