@@ -167,13 +167,12 @@ impl NameComDnsApi {
     ///
     /// Returns a `ListingResponse` if succeeded.
     pub async fn list_records(&self, domain: &str) -> reqwest::Result<ListingResponse> {
-        Ok(self
-            .with_param(Method::GET, &format!("domains/{}/records", domain))
+        self.with_param(Method::GET, &format!("domains/{}/records", domain))
             .send()
             .await?
             .error_for_status()?
             .json::<ListingResponse>()
-            .await?)
+            .await
     }
 
     /// Get the information of a record.
@@ -183,13 +182,12 @@ impl NameComDnsApi {
     ///
     /// Returns a `NameComRecord` if succeeded.
     pub async fn _get_record(&self, domain: &str, id: i32) -> reqwest::Result<NameComRecord> {
-        Ok(self
-            .with_param(Method::GET, &format!("domains/{}/records/{}", domain, id))
+        self.with_param(Method::GET, &format!("domains/{}/records/{}", domain, id))
             .send()
             .await?
             .error_for_status()?
             .json::<NameComRecord>()
-            .await?)
+            .await
     }
 
     /// Create a new record.
@@ -203,14 +201,13 @@ impl NameComDnsApi {
         domain: &str,
         record: &NameComNewRecord,
     ) -> reqwest::Result<NameComRecord> {
-        Ok(self
-            .with_param(Method::POST, &format!("domains/{}/records", domain))
+        self.with_param(Method::POST, &format!("domains/{}/records", domain))
             .json(&record)
             .send()
             .await?
             .error_for_status()?
             .json::<NameComRecord>()
-            .await?)
+            .await
     }
 
     /// Update a record.
@@ -226,14 +223,13 @@ impl NameComDnsApi {
         id: i32,
         record: &NameComNewRecord,
     ) -> reqwest::Result<NameComRecord> {
-        Ok(self
-            .with_param(Method::PUT, &format!("domains/{}/records/{}", domain, id))
+        self.with_param(Method::PUT, &format!("domains/{}/records/{}", domain, id))
             .json(&record)
             .send()
             .await?
             .error_for_status()?
             .json::<NameComRecord>()
-            .await?)
+            .await
     }
 
     /// Delete a record.
