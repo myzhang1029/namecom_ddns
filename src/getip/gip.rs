@@ -274,10 +274,9 @@ impl Provider for ProviderDns {
             .url
             .split_once('@')
             .expect("DNS Provider URL should be like query@server");
-        let opts = ResolverOpts {
-            timeout: Duration::from_millis(self.timeout),
-            ..ResolverOpts::default()
-        };
+        let mut opts = ResolverOpts::default();
+        opts.timeout = Duration::from_millis(self.timeout);
+        let opts = opts;
         // First get the address of the DNS server
         let resolver = TokioAsyncResolver::tokio(ResolverConfig::new(), opts)
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
@@ -295,6 +294,7 @@ impl Provider for ProviderDns {
             protocol: Protocol::Udp,
             tls_dns_name: None,
             trust_nx_responses: false,
+            bind_addr: None,
         };
         let mut config = ResolverConfig::new();
         config.add_name_server(ns);
