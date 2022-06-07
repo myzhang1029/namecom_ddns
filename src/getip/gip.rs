@@ -150,9 +150,7 @@ impl Default for AbstractProvider {
 fn build_client(timeout: u64, proxy: &Option<String>) -> reqwest::Result<Client> {
     let client = match (timeout, proxy) {
         (0, None) => Client::new(),
-        (0, Some(proxy)) => Client::builder()
-            .proxy(Proxy::all(proxy)?)
-            .build()?,
+        (0, Some(proxy)) => Client::builder().proxy(Proxy::all(proxy)?).build()?,
         (_, None) => Client::builder()
             .timeout(Duration::from_millis(timeout))
             .build()?,
@@ -165,11 +163,7 @@ fn build_client(timeout: u64, proxy: &Option<String>) -> reqwest::Result<Client>
 }
 
 /// Build a new GET request to `url` with `timeout` and `proxy` and return the response.
-async fn build_client_get(
-    url: &str,
-    timeout: u64,
-    proxy: &Option<String>,
-) -> Result<String> {
+async fn build_client_get(url: &str, timeout: u64, proxy: &Option<String>) -> Result<String> {
     Ok((async {
         let client = build_client(timeout, proxy)?;
         debug!("Reqwesting {:?} through proxy {:?}", url, proxy);
