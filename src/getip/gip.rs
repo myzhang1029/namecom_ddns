@@ -114,7 +114,7 @@ macro_rules! make_new {
     ($name: ident) => {
         impl $name {
             /// Create a new $name.
-            fn new(info: &ProviderInfo, timeout: u64, proxy: &Option<(String, u16)>) -> Self {
+            fn new(info: &ProviderInfo, timeout: u64, proxy: &Option<String>) -> Self {
                 Self(AbstractProvider {
                     info: info.clone(),
                     timeout,
@@ -132,8 +132,8 @@ pub struct AbstractProvider {
     pub info: ProviderInfo,
     /// DNS query or HTTP request timeout.
     pub timeout: u64,
-    /// HTTP proxy.
-    pub proxy: Option<(String, u16)>,
+    /// Proxy for HTTP requests.
+    pub proxy: Option<String>,
 }
 
 impl Default for AbstractProvider {
@@ -147,17 +147,17 @@ impl Default for AbstractProvider {
 }
 
 /// Build a new client with `timeout` and `proxy`.
-fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<Client> {
+fn build_client(timeout: u64, proxy: &Option<String>) -> reqwest::Result<Client> {
     let client = match (timeout, proxy) {
         (0, None) => Client::new(),
-        (0, Some((host, port))) => Client::builder()
-            .proxy(Proxy::all(&format!("http://{}:{}", host, port))?)
+        (0, Some(proxy)) => Client::builder()
+            .proxy(Proxy::all(proxy)?)
             .build()?,
         (_, None) => Client::builder()
             .timeout(Duration::from_millis(timeout))
             .build()?,
-        (_, Some((host, port))) => Client::builder()
-            .proxy(Proxy::all(&format!("http://{}:{}", host, port))?)
+        (_, Some(proxy)) => Client::builder()
+            .proxy(Proxy::all(proxy)?)
             .timeout(Duration::from_millis(timeout))
             .build()?,
     };
@@ -168,7 +168,7 @@ fn build_client(timeout: u64, proxy: &Option<(String, u16)>) -> reqwest::Result<
 async fn build_client_get(
     url: &str,
     timeout: u64,
-    proxy: &Option<(String, u16)>,
+    proxy: &Option<String>,
 ) -> Result<String> {
     Ok((async {
         let client = build_client(timeout, proxy)?;
@@ -320,7 +320,7 @@ pub struct ProviderMultiple {
     providers: Vec<ProviderInfo>,
     addr_type: IpType,
     timeout: u64,
-    proxy: Option<(String, u16)>,
+    proxy: Option<String>,
 }
 
 impl Default for ProviderMultiple {
