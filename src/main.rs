@@ -19,6 +19,7 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+#![forbid(unsafe_code)]
 #![warn(
     clippy::pedantic,
     missing_docs,
