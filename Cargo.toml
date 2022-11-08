@@ -21,13 +21,13 @@ log = "0.4"
 reqwest = { version = "0.11", features = ["json", "rustls-tls", "socks"], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-simplelog = "0.11"
+simplelog = "0.12"
 strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
 thiserror = "1"
 tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
 toml = "0.5"
-trust-dns-resolver = "0.21"
+trust-dns-resolver = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["heapapi", "iphlpapi", "iptypes"] }

@@ -81,8 +81,11 @@ async fn main() {
 
     // Initialize logger
     let log_format = ConfigBuilder::new()
-        .set_time_to_local(true)
-        .set_time_format_str("[%Y-%m-%d %H:%M:%S]")
+        .set_time_offset_to_local()
+        // Just use UTC if simplelog can't determine the offset
+        .or_else::<&mut ConfigBuilder, _>(Ok)
+        .unwrap()
+        .set_time_format_rfc3339()
         .build();
 
     // There unwrap()s are guaranteed to succeed by clap
