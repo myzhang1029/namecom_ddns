@@ -2,7 +2,7 @@
 //! - On Windows, API `GetAdaptersAddresses` is used.
 //! - On unix-like systems, `getifaddrs` and `getnameinfo` are used.
 //
-//  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
+//  Copyright (C) 2021 Zhang Maiyun <me@myzhangll.xyz>
 //
 //  This file is part of DNS updater.
 //

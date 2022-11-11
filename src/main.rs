@@ -1,7 +1,7 @@
 //! Dynamic DNS with the Name.com API.
 //! Run periodically to set DNS records to the local IP.
 //
-//  Copyright (C) 2021 Zhang Maiyun <myzhang1029@hotmail.com>
+//  Copyright (C) 2021 Zhang Maiyun <me@myzhangll.xyz>
 //
 //  This file is part of DNS updater.
 //
@@ -52,7 +52,7 @@ use tokio::{join, sync::RwLock, time};
 async fn main() {
     let matches = App::new("Name.com DDNS")
         .version(crate_version!())
-        .author("Zhang Maiyun <myzhang1029@hotmail.com")
+        .author("Zhang Maiyun <me@myzhangll.xyz")
         .about("Query IP addresses and update DNS records with Name.com API")
         .arg(
             Arg::new("config")
