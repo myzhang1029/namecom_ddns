@@ -39,7 +39,7 @@ use trust_dns_resolver::{
 };
 
 /// Method with which a global `Provider` retrieves addresses.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 pub enum ProviderMethod {
     /// Plain text HTTP request.
     #[serde(rename = "plain")]

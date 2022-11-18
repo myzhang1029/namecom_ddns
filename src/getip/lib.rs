@@ -53,7 +53,7 @@ use std::net::IpAddr;
 use thiserror::Error;
 
 /// Scope of the IP to be received.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 pub enum IpScope {
     /// Address as found by an external service.
     /// If used behind NAT, the address outside the NAT is received.
@@ -66,7 +66,7 @@ pub enum IpScope {
 }
 
 /// Type of global address.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 pub enum IpType {
     /// An IPv4 address.
     #[serde(rename = "IPv4")]
