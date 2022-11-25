@@ -53,7 +53,7 @@ pub enum ProviderMethod {
 }
 
 /// Information and configuration of a `Provider`.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct ProviderInfo {
     /// Provider name.
     name: String,

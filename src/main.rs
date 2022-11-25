@@ -74,7 +74,7 @@ async fn main() {
                 .long("log-level")
                 .help("Set log level")
                 .takes_value(true)
-                .possible_values(&["off", "error", "warn", "info", "debug", "trace"])
+                .possible_values(["off", "error", "warn", "info", "debug", "trace"])
                 .default_value("info"),
         )
         .get_matches();
