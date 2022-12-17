@@ -154,7 +154,7 @@ impl NameComDnsApi {
     /// - `method`: Method of this request.
     /// - `path`: /v4/{} url path.
     fn with_param(&self, method: Method, path: &str) -> RequestBuilder {
-        let url = format!("{}/v4/{}", self.url, path);
+        let url = format!("{}/v4/{path}", self.url);
         debug!("Creating reqwest client: {:?}", url);
         self.client
             .request(method, &url)
@@ -167,7 +167,7 @@ impl NameComDnsApi {
     ///
     /// Returns a `ListingResponse` if succeeded.
     pub async fn list_records(&self, domain: &str) -> reqwest::Result<ListingResponse> {
-        self.with_param(Method::GET, &format!("domains/{}/records", domain))
+        self.with_param(Method::GET, &format!("domains/{domain}/records"))
             .send()
             .await?
             .error_for_status()?
@@ -182,7 +182,7 @@ impl NameComDnsApi {
     ///
     /// Returns a `NameComRecord` if succeeded.
     pub async fn _get_record(&self, domain: &str, id: i32) -> reqwest::Result<NameComRecord> {
-        self.with_param(Method::GET, &format!("domains/{}/records/{}", domain, id))
+        self.with_param(Method::GET, &format!("domains/{domain}/records/{id}"))
             .send()
             .await?
             .error_for_status()?
@@ -201,7 +201,7 @@ impl NameComDnsApi {
         domain: &str,
         record: &NameComNewRecord,
     ) -> reqwest::Result<NameComRecord> {
-        self.with_param(Method::POST, &format!("domains/{}/records", domain))
+        self.with_param(Method::POST, &format!("domains/{domain}/records"))
             .json(&record)
             .send()
             .await?
@@ -223,7 +223,7 @@ impl NameComDnsApi {
         id: i32,
         record: &NameComNewRecord,
     ) -> reqwest::Result<NameComRecord> {
-        self.with_param(Method::PUT, &format!("domains/{}/records/{}", domain, id))
+        self.with_param(Method::PUT, &format!("domains/{domain}/records/{id}"))
             .json(&record)
             .send()
             .await?
@@ -237,13 +237,10 @@ impl NameComDnsApi {
     /// - `domain`: The zone that the record belongs to.
     /// - `id`: Identifier of the record.
     pub async fn _delete_record(&self, domain: &str, id: i32) -> reqwest::Result<()> {
-        self.with_param(
-            Method::DELETE,
-            &format!("domains/{}/records/{}", domain, id),
-        )
-        .send()
-        .await?
-        .error_for_status()?;
+        self.with_param(Method::DELETE, &format!("domains/{domain}/records/{id}"))
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(())
     }
 

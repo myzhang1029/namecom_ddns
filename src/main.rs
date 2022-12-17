@@ -36,7 +36,8 @@
 mod api;
 mod config;
 
-use clap::{crate_version, App, Arg};
+use clap::command;
+use clap::Parser;
 use getip::{get_ip, IpScope, IpType};
 use log::{debug, error, info};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
@@ -48,36 +49,25 @@ use std::sync::Arc;
 use tokio::process::Command;
 use tokio::{join, sync::RwLock, time};
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Override default configuration file
+    #[arg(short='f', long, default_value_t=String::from("namecom_ddns.toml"))]
+    config_file: String,
+
+    /// Only check and update once
+    #[arg(short = 's', long)]
+    oneshot: bool,
+
+    /// Set Log level
+    #[arg(short, long, default_value_t=LevelFilter::Info)]
+    log_level: LevelFilter,
+}
+
 #[tokio::main]
 async fn main() {
-    let matches = App::new("Name.com DDNS")
-        .version(crate_version!())
-        .author("Zhang Maiyun <me@myzhangll.xyz")
-        .about("Query IP addresses and update DNS records with Name.com API")
-        .arg(
-            Arg::new("config")
-                .short('f')
-                .long("config-file")
-                .help("Set a custom config file")
-                .takes_value(true)
-                .default_value("namecom_ddns.toml"),
-        )
-        .arg(
-            Arg::new("oneshot")
-                .short('s')
-                .long("oneshot")
-                .help("Only check and update once"),
-        )
-        .arg(
-            Arg::new("loglevel")
-                .short('l')
-                .long("log-level")
-                .help("Set log level")
-                .takes_value(true)
-                .possible_values(["off", "error", "warn", "info", "debug", "trace"])
-                .default_value("info"),
-        )
-        .get_matches();
+    let args = Args::parse();
 
     // Initialize logger
     let log_format = ConfigBuilder::new()
@@ -90,16 +80,16 @@ async fn main() {
 
     // There unwrap()s are guaranteed to succeed by clap
     if let Err(e) = TermLogger::init(
-        LevelFilter::from_str(matches.value_of("loglevel").unwrap()).unwrap(),
+        args.log_level,
         log_format,
         TerminalMode::Mixed,
         ColorChoice::Auto,
     ) {
-        panic!("Cannot create logger: {:?}", e);
+        panic!("Cannot create logger: {e:?}");
     }
 
-    let configuration = config::NameComDdnsConfig::from_file(matches.value_of("config").unwrap())
-        .expect("Cannot open configuration");
+    let configuration =
+        config::NameComDdnsConfig::from_file(args.config_file).expect("Cannot open configuration");
 
     // Check and update the DNS according to the config
     let mut interval = time::interval(time::Duration::from_secs(configuration.core.interval * 60));
@@ -114,8 +104,8 @@ async fn main() {
     )
     .unwrap();
     let app = DdnsApp::new(&configuration.records, &client);
-    if matches.is_present("oneshot") {
-        exit(if app.update_once().await { 0 } else { 1 });
+    if args.oneshot {
+        exit(i32::from(!(app.update_once().await)));
     } else {
         app.updater_loop(&mut interval).await;
     }

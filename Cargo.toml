@@ -13,7 +13,7 @@ exclude = ["/ci", ".*"]
 
 [dependencies]
 async-trait = "0.1"
-clap = { version = "3", features = ["cargo"] }
+clap = { version = "4", features = ["cargo", "derive"] }
 derive_deref = "1"
 futures = "0.3"
 libc = "0.2"
