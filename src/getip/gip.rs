@@ -340,7 +340,10 @@ impl ProviderMultiple {
     }
 
     /// Set your own providers from JSON
-    #[must_use]
+    ///
+    /// # Errors
+    /// Fails with the same error as `serde_json::from_str`
+    /// if the JSON is invalid.
     pub fn from_json(json: &str) -> serde_json::Result<Self> {
         let providers: Vec<ProviderInfo> = serde_json::from_str(json)?;
         Ok(Self {
