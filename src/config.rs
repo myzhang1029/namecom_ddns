@@ -76,6 +76,14 @@ pub struct NameComConfigRecord {
     pub command: Option<Vec<String>>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    #[error("TOML error: {0}")]
+    Toml(#[from] toml::de::Error),
+}
+
 #[derive(Debug, Deserialize)]
 #[allow(clippy::module_name_repetitions)]
 pub struct NameComDdnsConfig {
@@ -84,7 +92,7 @@ pub struct NameComDdnsConfig {
 }
 
 impl NameComDdnsConfig {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut file = File::open(path)?;
         debug!("Opened file {:?}", file);
         let mut file_content = String::new();

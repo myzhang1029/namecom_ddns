@@ -204,7 +204,7 @@ fn filter_nonroute_ipv4(addr: &&IpAddr) -> bool {
 fn filter_nonroute_ipv6(addr: &&IpAddr) -> bool {
     !addr.is_loopback()
         && !addr.is_unspecified()
-        && !(cast_ipv6!(addr).segments()[0] & 0xffc0) == 0xfe80
+        && (cast_ipv6!(addr).segments()[0] & 0xffc0) != 0xfe80
 }
 
 /// Filter function that prefers global IPv4 addresses

@@ -250,12 +250,13 @@ async fn host_to_addr(
     Ok(match addr_type {
         IpType::Ipv4 => {
             let srv = resolver.ipv4_lookup(host).await?;
-            // Trick to unpack None
-            (|| Some(IpAddr::V4(*srv.iter().next()?)))()
+            let record = srv.iter().next();
+            record.map(|r| IpAddr::V4(r.0))
         }
         IpType::Ipv6 => {
             let srv = resolver.ipv6_lookup(host).await?;
-            (|| Some(IpAddr::V6(*srv.iter().next()?)))()
+            let record = srv.iter().next();
+            record.map(|r| IpAddr::V6(r.0))
         }
     })
 }
@@ -268,11 +269,8 @@ impl Provider for ProviderDns {
             .url
             .split_once('@')
             .expect("DNS Provider URL should be like query@server");
-        let mut opts = ResolverOpts::default();
-        opts.timeout = Duration::from_millis(self.timeout);
-        let opts = opts;
         // First get the address of the DNS server
-        let resolver = TokioAsyncResolver::tokio(ResolverConfig::new(), opts)
+        let resolver = TokioAsyncResolver::tokio_from_system_conf()
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
         debug!("Resolving {:?} on {:?}", server, resolver);
         // Get Resolver's address
@@ -287,14 +285,16 @@ impl Provider for ProviderDns {
             socket_addr: std::net::SocketAddr::new(server_addr, 53),
             protocol: Protocol::Udp,
             tls_dns_name: None,
-            trust_nx_responses: false,
+            trust_negative_responses: false,
             bind_addr: None,
         };
         let mut config = ResolverConfig::new();
         config.add_name_server(ns);
         // Create new resolver
-        let resolver = TokioAsyncResolver::tokio(config, opts)
-            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
+        let mut opts = ResolverOpts::default();
+        opts.timeout = Duration::from_millis(self.timeout);
+        let opts = opts;
+        let resolver = TokioAsyncResolver::tokio(config, opts);
         debug!("Resolving {:?} on {:?}", query, resolver);
         let addr = host_to_addr(resolver, query, self.info.addr_type)
             .await
@@ -337,6 +337,16 @@ impl ProviderMultiple {
             addr_type: IpType::Ipv6,
             ..ProviderMultiple::default()
         }
+    }
+
+    /// Set your own providers from JSON
+    #[must_use]
+    pub fn from_json(json: &str) -> serde_json::Result<Self> {
+        let providers: Vec<ProviderInfo> = serde_json::from_str(json)?;
+        Ok(Self {
+            providers,
+            ..ProviderMultiple::default()
+        })
     }
 }
 

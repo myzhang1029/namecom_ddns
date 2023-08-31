@@ -185,7 +185,7 @@ impl<'a> DdnsApp<'a> {
             (|| Some(*cache.get(item)?))()
         };
         // Check if the id still points to the same record skipped
-        Ok(if matches!(id, None) {
+        Ok(if id.is_none() {
             let matches = self
                 .client
                 .search_records(&item.zone, item.rec_type, Some(&item.host))

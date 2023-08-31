@@ -175,7 +175,7 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
 
 #[cfg(test)]
 mod test {
-    use crate::{get_ip, libc_getips, IpScope, IpType};
+    use crate::{get_ip, gip::ProviderMultiple, libc_getips, IpScope, IpType, Provider};
     use std::net::IpAddr;
 
     /// Test if any IPv6 address is available on an interface
@@ -223,6 +223,33 @@ mod test {
         } else {
             assert!(false, "The result of get_addr() should be an IPv4 address");
         }
+    }
+
+    #[tokio::test]
+    async fn test_global_ipv4_just_dns_is_any() {
+        const DNS_PROVIDERS: &str = r#"[
+            {
+              "method": "dns",
+              "name": "opendns.com",
+              "type": "IPv4",
+              "url": "myip.opendns.com@resolver1.opendns.com"
+            },
+            {
+              "method": "dns",
+              "name": "opendns.com",
+              "type": "IPv6",
+              "url": "myip.opendns.com@resolver1.opendns.com"
+            },
+            {
+              "method": "dns",
+              "name": "akamai.com",
+              "type": "IPv4",
+              "url": "whoami.akamai.com@ns1-1.akamaitech.net"
+            }
+          ]"#;
+        let provider = ProviderMultiple::from_json(DNS_PROVIDERS).unwrap();
+        let addr = provider.get_addr().await;
+        assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
     }
 
     #[tokio::test]
