@@ -1,7 +1,7 @@
 //! Dynamic DNS with the Name.com API.
 //! Run periodically to set DNS records to the local IP.
 //
-//  Copyright (C) 2021 Zhang Maiyun <me@myzhangll.xyz>
+//  Copyright (C) 2021 Zhang Maiyun <me@maiyun.me>
 //
 //  This file is part of DNS updater.
 //

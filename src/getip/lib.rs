@@ -10,7 +10,7 @@
 //! Module `libc_getips` contains a low-level function to receive all addresses
 //! directly from the interfaces/adapters.
 //
-//  Copyright (C) 2021 Zhang Maiyun <me@myzhangll.xyz>
+//  Copyright (C) 2021 Zhang Maiyun <me@maiyun.me>
 //
 //  This file is part of DNS updater.
 //

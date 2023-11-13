@@ -1,7 +1,7 @@
 //! Implementations of `Provider` that receive local IP addresses of the machine
 //! from `libc` APIs and command-line helper programs (if available).
 //
-//  Copyright (C) 2021 Zhang Maiyun <me@myzhangll.xyz>
+//  Copyright (C) 2021 Zhang Maiyun <me@maiyun.me>
 //
 //  This file is part of DNS updater.
 //
