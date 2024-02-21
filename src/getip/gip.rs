@@ -27,7 +27,6 @@ use log::{debug, trace};
 use reqwest::{Client, Proxy};
 use serde::Deserialize;
 use serde_json::Value;
-use std::default::Default;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::time::Duration;
@@ -335,7 +334,7 @@ impl ProviderMultiple {
     pub fn default_v6() -> Self {
         Self {
             addr_type: IpType::Ipv6,
-            ..ProviderMultiple::default()
+            ..Self::default()
         }
     }
 
@@ -348,7 +347,7 @@ impl ProviderMultiple {
         let providers: Vec<ProviderInfo> = serde_json::from_str(json)?;
         Ok(Self {
             providers,
-            ..ProviderMultiple::default()
+            ..Self::default()
         })
     }
 }

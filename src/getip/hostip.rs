@@ -215,7 +215,7 @@ fn filter_nonlocal_ipv4(addr: &&&IpAddr) -> bool {
 
 /// Filter function that prefers global IPv6 addresses
 #[allow(clippy::trivially_copy_pass_by_ref)]
-fn filter_nonlocal_ipv6(_addr: &&&IpAddr) -> bool {
+const fn filter_nonlocal_ipv6(_addr: &&&IpAddr) -> bool {
     // XXX: `IpAddr::is_global` is probably a better choice but it's currently unstable.
     false
 }

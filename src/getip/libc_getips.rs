@@ -25,7 +25,6 @@ use crate::{Error, Result};
 #[cfg(windows)]
 use log::error;
 use log::{debug, trace};
-use std::convert::TryInto;
 use std::ffi::CStr;
 use std::mem;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -339,14 +338,13 @@ mod test {
             Ok(addresses) => {
                 assert!(!addresses.is_empty(), "Addresses should not be empty");
                 for address in &addresses {
-                    assert!(address.is_ipv4(), "Address not IPv4: {:?}", address);
+                    assert!(address.is_ipv4(), "Address not IPv4: {address:?}");
                 }
             }
             Err(error) => {
                 assert!(
                     matches!(error, Error::NoAddress),
-                    "get_iface_addrs failed because of reasons other than NoAddress: {:?}",
-                    error
+                    "get_iface_addrs failed because of reasons other than NoAddress: {error:?}"
                 );
             }
         }
@@ -358,14 +356,13 @@ mod test {
             Ok(addresses) => {
                 assert!(!addresses.is_empty(), "Addresses should not be empty");
                 for address in &addresses {
-                    assert!(address.is_ipv6(), "Address not IPv6: {:?}", address);
+                    assert!(address.is_ipv6(), "Address not IPv6: {address:?}");
                 }
             }
             Err(error) => {
                 assert!(
                     matches!(error, Error::NoAddress),
-                    "get_iface_addrs failed because of reasons other than NoAddress: {:?}",
-                    error
+                    "get_iface_addrs failed because of reasons other than NoAddress: {error:?}"
                 );
             }
         }
@@ -380,8 +377,7 @@ mod test {
             Err(error) => {
                 assert!(
                     matches!(error, Error::NoAddress),
-                    "get_iface_addrs failed because of reasons other than NoAddress: {:?}",
-                    error
+                    "get_iface_addrs failed because of reasons other than NoAddress: {error:?}"
                 );
                 // It does not make sense if this one if NoAddress but individual ones succeed
                 assert!(

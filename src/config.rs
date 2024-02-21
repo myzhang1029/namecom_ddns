@@ -44,11 +44,11 @@ fn default_url() -> String {
     String::from("https://api.name.com/")
 }
 
-fn default_interval() -> u64 {
+const fn default_interval() -> u64 {
     60
 }
 
-fn default_timeout() -> u64 {
+const fn default_timeout() -> u64 {
     30
 }
 
