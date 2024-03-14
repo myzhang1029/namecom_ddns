@@ -23,6 +23,11 @@
 use crate::{Error, IpType, Provider, Result};
 use async_trait::async_trait;
 use derive_deref::Deref;
+use hickory_resolver::{
+    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts},
+    error::ResolveError,
+    TokioAsyncResolver,
+};
 use log::{debug, trace};
 use reqwest::{Client, Proxy};
 use serde::Deserialize;
@@ -31,11 +36,6 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error as ErrorDerive;
-use hickory_resolver::{
-    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts},
-    error::ResolveError,
-    TokioAsyncResolver,
-};
 
 /// Method with which a global `Provider` retrieves addresses.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
@@ -355,7 +355,7 @@ impl ProviderMultiple {
 #[async_trait]
 impl Provider for ProviderMultiple {
     async fn get_addr(&self) -> Result<IpAddr> {
-        let mut result: Result<IpAddr> = Err(crate::Error::NoAddress);
+        let mut result: Result<IpAddr> = Err(Error::NoAddress);
         trace!("Registered providers: {:?}", self.providers);
         for info in &self.providers {
             if info.addr_type != self.addr_type {

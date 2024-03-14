@@ -81,7 +81,7 @@ pub enum IpType {
 pub enum Error {
     /// Error from a global IP provider.
     #[error(transparent)]
-    GlobalIpError(#[from] crate::gip::GlobalIpError),
+    GlobalIpError(#[from] gip::GlobalIpError),
 
     /// Cannot parse string as an IP.
     #[error(transparent)]
@@ -182,26 +182,22 @@ mod test {
     /// If not, the test is skipped
     fn has_any_ipv6_address(iface_name: Option<&str>, global: bool) -> bool {
         if let Ok(addresses) = libc_getips::get_iface_addrs(Some(IpType::Ipv6), iface_name) {
-            addresses
-                .iter()
-                .filter(|ip| {
-                    !ip.is_loopback()
-                        && !ip.is_unspecified()
-                        && if global {
-                            if let IpAddr::V6(dcasted) = ip {
-                                // !is_unicast_link_local
-                                (dcasted.segments()[0] & 0xffc0) != 0xfe80
+            addresses.iter().any(|ip| {
+                !ip.is_loopback()
+                    && !ip.is_unspecified()
+                    && if global {
+                        if let IpAddr::V6(dcasted) = ip {
+                            // !is_unicast_link_local
+                            (dcasted.segments()[0] & 0xffc0) != 0xfe80
                                     // !is_unique_local
                                     && (dcasted.segments()[0] & 0xfe00) != 0xfc00
-                            } else {
-                                unreachable!()
-                            }
                         } else {
-                            true
+                            unreachable!()
                         }
-                })
-                .next()
-                .is_some()
+                    } else {
+                        true
+                    }
+            })
         } else {
             false
         }
@@ -221,7 +217,7 @@ mod test {
                 "The result of get_addr() should not be loopback"
             );
         } else {
-            assert!(false, "The result of get_addr() should be an IPv4 address");
+            panic!("The result of get_addr() should be an IPv4 address");
         }
     }
 
@@ -269,7 +265,7 @@ mod test {
                 "The result of get_addr() should not be unspecified"
             );
         } else {
-            assert!(false, "The result of get_addr() should be an IPv6 address");
+            panic!("The result of get_addr() should be an IPv6 address");
         }
     }
 
@@ -277,9 +273,10 @@ mod test {
     async fn test_local_ipv4_is_any() {
         let addr = get_ip(IpType::Ipv4, IpScope::Local, None).await;
         assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
-        if !addr.unwrap().is_ipv4() {
-            assert!(false, "The result of get_addr() should be an IPv4 address");
-        }
+        assert!(
+            addr.unwrap().is_ipv4(),
+            "The result of get_addr() should be an IPv4 address"
+        );
     }
 
     #[tokio::test]
@@ -289,8 +286,9 @@ mod test {
         }
         let addr = get_ip(IpType::Ipv6, IpScope::Local, None).await;
         assert!(addr.is_ok(), "The result of get_addr() should be Ok()");
-        if !addr.unwrap().is_ipv6() {
-            assert!(false, "The result of get_addr() should be an IPv6 address");
-        }
+        assert!(
+            addr.unwrap().is_ipv6(),
+            "The result of get_addr() should be an IPv6 address"
+        );
     }
 }

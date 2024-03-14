@@ -66,10 +66,7 @@ impl Provider for LocalIpv6CommandProvider {
         // Extract addresses line by line
         for line in out_br {
             let line = String::from_utf8(line.to_vec())?;
-            let fields: Vec<String> = line
-                .split_whitespace()
-                .map(std::string::ToString::to_string)
-                .collect();
+            let fields: Vec<String> = line.split_whitespace().map(ToString::to_string).collect();
             // A shorter one is certainly not an entry
             // Check if the label is "inet6"
             if fields.len() > 1 && fields[0] == "inet6" {
@@ -93,7 +90,7 @@ impl Provider for LocalIpv6CommandProvider {
         }
         if addrs.is_empty() {
             debug!("Short-circuting NoAddress because an ip command succeeded without addresses");
-            Err(crate::Error::NoAddress)
+            Err(Error::NoAddress)
         } else {
             Ok(addrs
                 .iter()
@@ -232,7 +229,7 @@ impl<'a> LocalLibcProvider {
     /// Create a new `LocalLibcProvider`.
     pub fn new(nic: Option<&'a str>, ip_type: IpType) -> Self {
         Self {
-            nic: nic.map(std::string::ToString::to_string),
+            nic: nic.map(ToString::to_string),
             ip_type,
         }
     }
