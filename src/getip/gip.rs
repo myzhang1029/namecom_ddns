@@ -31,7 +31,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error as ErrorDerive;
-use trust_dns_resolver::{
+use hickory_resolver::{
     config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts},
     error::ResolveError,
     TokioAsyncResolver,
