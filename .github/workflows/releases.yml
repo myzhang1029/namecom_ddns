@@ -26,10 +26,10 @@ jobs:
 
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Rust Cache
-      uses: Swatinem/rust-cache@v1
+      uses: Swatinem/rust-cache@v2
 
     - name: Build release
       run: cargo build --release
@@ -38,7 +38,7 @@ jobs:
       run: bash -c "rm -rf target/release/namecom_ddns.d"
 
     - name: Upload binary
-      uses: actions/upload-artifact@v2.2.4
+      uses: actions/upload-artifact@v4
       with:
         name: namecom_ddns-${{ matrix.config.name }}
         path: target/release/namecom_ddns*

@@ -28,7 +28,7 @@ jobs:
 
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
@@ -37,7 +37,7 @@ jobs:
         rustup target add ${{ matrix.config.rust_target }}
 
     - name: Rust Cache
-      uses: Swatinem/rust-cache@v1
+      uses: Swatinem/rust-cache@v2
 
     - name: Build release
       run: |
@@ -47,7 +47,7 @@ jobs:
       run: bash -c "rm -rf target/${{ matrix.config.rust_target }}/release/namecom_ddns.*"
 
     - name: Upload binary
-      uses: actions/upload-artifact@v2.2.4
+      uses: actions/upload-artifact@v4
       with:
         name: namecom_ddns-${{ matrix.config.rust_target }}
         path: target/${{ matrix.config.rust_target }}/release/namecom_ddns*
