@@ -1,7 +1,11 @@
 [package]
 name = "namecom_ddns"
 version = "0.6.1"
-authors = ["Zhang Maiyun <me@maiyun.me>", "dalance <dalance@gmail.com>"]
+authors = [
+    "Zhang Maiyun <me@maiyun.me>",
+    "dalance <dalance@gmail.com>",
+    "mingcheng <mingcheng@apache.org>",
+]
 edition = "2021"
 description = "Query IP addresses and update DNS records with Name.com API"
 readme = "README.md"
@@ -18,14 +22,24 @@ derive_deref = "1"
 futures = "0.3"
 libc = "0.2"
 log = "0.4"
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "socks"], default-features = false }
+reqwest = { version = "0.12", features = [
+    "json",
+    "rustls-tls",
+    "socks",
+], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 simplelog = "0.12"
 strum = { version = "0.26", features = ["derive"] }
 strum_macros = "0.26"
 thiserror = "2"
-tokio = { version = "^1, >=1.23.1", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "^1, >=1.23.1", features = [
+    "macros",
+    "process",
+    "rt-multi-thread",
+    "sync",
+    "time",
+] }
 toml = "0.8"
 hickory-resolver = "0.24"
 
