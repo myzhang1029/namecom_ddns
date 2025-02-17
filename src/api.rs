@@ -18,11 +18,14 @@
 //  along with DNS updater.  If not, see <https://www.gnu.org/licenses/>.
 //
 use log::{debug, trace};
-use reqwest::{Client, Method, RequestBuilder};
+use reqwest::{Client, ClientBuilder, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
 use std::time::Duration;
+use std::{env, ops::Deref};
 use strum_macros::{Display, EnumString};
+
+/// Environment variable for name.com API key.
+const ENV_NAMECOM_REQUEST_PROXY: &'static str = "NAMECOM_REQUEST_PROXY";
 
 /// Deserializer for `reqwest::Response` of record listings.
 #[derive(Deserialize, Debug)]
@@ -135,12 +138,24 @@ impl NameComDnsApi {
         api_url: &str,
         timeout: u64,
     ) -> reqwest::Result<Self> {
-        let client = match timeout {
-            0 => Client::new(),
-            _ => Client::builder()
-                .timeout(Duration::from_secs(timeout))
-                .build()?,
-        };
+        let mut builder = ClientBuilder::new();
+
+        if timeout != 0 {
+            debug!("Setting timeout to {} seconds", timeout);
+            builder = builder.timeout(Duration::from_secs(timeout));
+        }
+
+        if env::var(ENV_NAMECOM_REQUEST_PROXY).is_ok() {
+            debug!("'{ENV_NAMECOM_REQUEST_PROXY}' is set, using proxy");
+            builder = builder.proxy(reqwest::Proxy::all(
+                env::var(ENV_NAMECOM_REQUEST_PROXY).unwrap(),
+            )?);
+        }
+
+        // Build the client
+        debug!("Building reqwest client");
+        let client = builder.build()?;
+
         Ok(Self {
             url: api_url.to_string(),
             username: username.to_string(),
@@ -273,4 +288,37 @@ impl NameComDnsApi {
             })
             .collect())
     }
+}
+
+#[tokio::test]
+async fn test_namecom_api_proxy_feature() {
+    env::set_var(ENV_NAMECOM_REQUEST_PROXY, "socks5://localhost:7890");
+
+    let api = NameComDnsApi::create("", "", "https://api.name.com", 0).unwrap();
+    let result = api
+        .client
+        .get("http://www.google.com/generate_204")
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(result.status().is_success());
+}
+
+#[tokio::test]
+#[should_panic]
+async fn test_namecom_api_proxy_feature_should_panic() {
+    env::set_var(ENV_NAMECOM_REQUEST_PROXY, "http://localhost:80");
+
+    let api = NameComDnsApi::create("", "", "https://api.name.com", 0).unwrap();
+    let result = api
+        .client
+        .get("http://www.google.com/generate_204")
+        .timeout(Duration::from_secs(2))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(result.status().is_success());
 }
