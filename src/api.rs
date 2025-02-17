@@ -292,29 +292,31 @@ impl NameComDnsApi {
 
 #[tokio::test]
 async fn test_namecom_api_proxy_feature() {
-    env::set_var(ENV_NAMECOM_REQUEST_PROXY, "socks5://localhost:7890");
+    // start test if proxy is set
+    if env::var(ENV_NAMECOM_REQUEST_PROXY).is_ok() {
+        let api = NameComDnsApi::create("", "", "", 0).unwrap();
+        let result = api
+            .client
+            .get("https://httpbin.org/headers")
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .unwrap();
 
-    let api = NameComDnsApi::create("", "", "https://api.name.com", 0).unwrap();
-    let result = api
-        .client
-        .get("http://www.google.com/generate_204")
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-        .unwrap();
-
-    assert!(result.status().is_success());
+        assert!(result.status().is_success());
+    }
 }
 
 #[tokio::test]
 #[should_panic]
 async fn test_namecom_api_proxy_feature_should_panic() {
+    // set a proxy that does not exist
     env::set_var(ENV_NAMECOM_REQUEST_PROXY, "http://localhost:80");
 
-    let api = NameComDnsApi::create("", "", "https://api.name.com", 0).unwrap();
+    let api = NameComDnsApi::create("", "", "", 0).unwrap();
     let result = api
         .client
-        .get("http://www.google.com/generate_204")
+        .get("https://httpbin.org/headers")
         .timeout(Duration::from_secs(2))
         .send()
         .await
