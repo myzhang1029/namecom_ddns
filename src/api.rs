@@ -288,37 +288,65 @@ impl NameComDnsApi {
     }
 }
 
-#[tokio::test]
-async fn test_namecom_api_proxy_feature() {
-    // start test if proxy is set
-    if env::var(ENV_NAMECOM_REQUEST_PROXY).is_ok() {
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn make_proxy_server(listener: tokio::net::TcpListener) {
+        // run a simple HTTP proxy
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0; 1024];
+            let n = socket.read(&mut buf).await.unwrap();
+            let request = String::from_utf8_lossy(&buf[..n]);
+            if request.starts_with("GET") {
+                // echo the request back
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Requested-Through-Proxy: true\r\n\r\n{request}",
+                    request.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            } else {
+                // ignore things like CONNECT
+                continue;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_namecom_api_proxy_feature() {
+        // get a random port
+        let listener = tokio::net::TcpListener::bind("localhost:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        env::set_var(ENV_NAMECOM_REQUEST_PROXY, format!("http://{addr}"));
+
         let api = NameComDnsApi::create("", "", "", 0).unwrap();
         let result = api
             .client
-            .get("https://httpbin.org/headers")
-            .timeout(Duration::from_secs(5))
+            .get("http://httpbin.org")
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await
+            .unwrap_err();
+        // Hopefully we get a connection refused
+        assert!(result.is_connect() || result.is_timeout());
+
+        // Now test if the proxy works
+        // The two halves of the test must be in the same thread,
+        // otherwise the env variable will be shared and mess things up.
+        let proxy = tokio::spawn(make_proxy_server(listener));
+        let result = api
+            .client
+            .get("http://httpbin.org")
+            .timeout(Duration::from_secs(2))
             .send()
             .await
             .unwrap();
-
-        assert!(result.status().is_success());
+        assert_eq!(result.status(), 200);
+        // Make sure the proxy is used
+        assert!(result.headers().get("X-Requested-Through-Proxy").is_some());
+        // We are just testing that the proxy is used, and not whether the fake proxy works
+        proxy.abort();
     }
-}
-
-#[tokio::test]
-#[should_panic]
-async fn test_namecom_api_proxy_feature_should_panic() {
-    // set a proxy that does not exist
-    env::set_var(ENV_NAMECOM_REQUEST_PROXY, "http://localhost:80");
-
-    let api = NameComDnsApi::create("", "", "", 0).unwrap();
-    let result = api
-        .client
-        .get("https://httpbin.org/headers")
-        .timeout(Duration::from_secs(2))
-        .send()
-        .await
-        .unwrap();
-
-    assert!(result.status().is_success());
 }
