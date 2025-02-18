@@ -28,11 +28,25 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
+    - name: Install Rust toolchain
+      run:
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --component llvm-tools-preview
 
-    - name: Build
-      run: cargo build --verbose
+    - name: Install grcov
+      run: cargo install grcov
 
-    - name: Run tests
+    - name: Check if program builds
+      run: cargo run --verbose -- --help
+
+    - name: Run cargo tests with default features
       run: cargo test --verbose
+      env:
+        RUSTFLAGS: -Cinstrument-coverage
+
+    - name: Process coverage data
+      run: grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info
+
+    - uses: codecov/codecov-action@v4
+      with:
+        files: ./lcov.info
+        token: ${{ secrets.CODECOV_TOKEN }}
