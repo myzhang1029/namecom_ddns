@@ -224,10 +224,10 @@ pub struct LocalLibcProvider {
     ip_type: IpType,
 }
 
-impl<'a> LocalLibcProvider {
+impl LocalLibcProvider {
     #[must_use]
     /// Create a new `LocalLibcProvider`.
-    pub fn new(nic: Option<&'a str>, ip_type: IpType) -> Self {
+    pub fn new(nic: Option<&str>, ip_type: IpType) -> Self {
         Self {
             nic: nic.map(ToString::to_string),
             ip_type,

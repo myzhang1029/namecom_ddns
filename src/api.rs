@@ -25,7 +25,7 @@ use std::{env, ops::Deref};
 use strum_macros::{Display, EnumString};
 
 /// Environment variable for name.com API key.
-const ENV_NAMECOM_REQUEST_PROXY: &'static str = "NAMECOM_REQUEST_PROXY";
+const ENV_NAMECOM_REQUEST_PROXY: &str = "NAMECOM_REQUEST_PROXY";
 
 /// Deserializer for `reqwest::Response` of record listings.
 #[derive(Deserialize, Debug)]
@@ -307,10 +307,8 @@ mod tests {
                     request.len()
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
-            } else {
-                // ignore things like CONNECT
-                continue;
             }
+            // ignore things like CONNECT
         }
     }
 

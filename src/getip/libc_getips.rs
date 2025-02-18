@@ -84,8 +84,8 @@ fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) -> Result
     }
     // Length for `getnameinfo`
     let socklen: libc::socklen_t = match family {
-        libc::AF_INET => mem::size_of::<libc::sockaddr_in>(),
-        libc::AF_INET6 => mem::size_of::<libc::sockaddr_in6>(),
+        libc::AF_INET => size_of::<libc::sockaddr_in>(),
+        libc::AF_INET6 => size_of::<libc::sockaddr_in6>(),
         _ => unreachable!(),
     }
     .try_into()
