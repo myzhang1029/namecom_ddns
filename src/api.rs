@@ -145,11 +145,9 @@ impl NameComDnsApi {
             builder = builder.timeout(Duration::from_secs(timeout));
         }
 
-        if env::var(ENV_NAMECOM_REQUEST_PROXY).is_ok() {
-            debug!("'{ENV_NAMECOM_REQUEST_PROXY}' is set, using proxy");
-            builder = builder.proxy(reqwest::Proxy::all(
-                env::var(ENV_NAMECOM_REQUEST_PROXY).unwrap(),
-            )?);
+        if let Ok(proxy) = env::var(ENV_NAMECOM_REQUEST_PROXY) {
+            debug!("'ENV_NAMECOM_REQUEST_PROXY' is set, using proxy {proxy}");
+            builder = builder.proxy(reqwest::Proxy::all(proxy)?);
         }
 
         // Build the client
