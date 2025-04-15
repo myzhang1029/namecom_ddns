@@ -24,9 +24,7 @@ use crate::{Error, IpType, Provider, Result};
 use async_trait::async_trait;
 use derive_deref::Deref;
 use hickory_resolver::{
-    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts},
-    error::ResolveError,
-    TokioAsyncResolver,
+    config::{NameServerConfig, ResolverConfig}, name_server::TokioConnectionProvider, proto::xfer::Protocol, ResolveError, TokioResolver
 };
 use log::{debug, trace};
 use reqwest::{Client, Proxy};
@@ -242,7 +240,7 @@ make_new! {ProviderDns}
 
 /// Resolve host to address with a resolver.
 async fn host_to_addr(
-    resolver: TokioAsyncResolver,
+    resolver: TokioResolver,
     host: &str,
     addr_type: IpType,
 ) -> std::result::Result<Option<IpAddr>, ResolveError> {
@@ -269,9 +267,10 @@ impl Provider for ProviderDns {
             .split_once('@')
             .expect("DNS Provider URL should be like query@server");
         // First get the address of the DNS server
-        let resolver = TokioAsyncResolver::tokio_from_system_conf()
-            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?;
-        debug!("Resolving {:?} on {:?}", server, resolver);
+        let resolver = TokioResolver::builder_tokio()
+            .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?
+            .build();
+        debug!("Resolving {server:?} on {resolver:?}");
         // Get Resolver's address
         let server_addr = host_to_addr(resolver, server, self.info.addr_type)
             .await
@@ -285,16 +284,16 @@ impl Provider for ProviderDns {
             protocol: Protocol::Udp,
             tls_dns_name: None,
             trust_negative_responses: false,
+            http_endpoint: None,
             bind_addr: None,
         };
         let mut config = ResolverConfig::new();
         config.add_name_server(ns);
         // Create new resolver
-        let mut opts = ResolverOpts::default();
-        opts.timeout = Duration::from_millis(self.timeout);
-        let opts = opts;
-        let resolver = TokioAsyncResolver::tokio(config, opts);
-        debug!("Resolving {:?} on {:?}", query, resolver);
+        let mut resolver = TokioResolver::builder_with_config(config, TokioConnectionProvider::default());
+        resolver.options_mut().timeout = Duration::from_millis(self.timeout);
+        let resolver = resolver.build();
+        debug!("Resolving {query:?} on {resolver:?}");
         let addr = host_to_addr(resolver, query, self.info.addr_type)
             .await
             .map_err(|e| GlobalIpError::DnsError(Box::new(e)))?
