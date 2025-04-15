@@ -141,7 +141,7 @@ impl NameComDnsApi {
         let mut builder = ClientBuilder::new();
 
         if timeout != 0 {
-            debug!("Setting timeout to {} seconds", timeout);
+            debug!("Setting timeout to {timeout} seconds");
             builder = builder.timeout(Duration::from_secs(timeout));
         }
 
@@ -168,7 +168,7 @@ impl NameComDnsApi {
     /// - `path`: /v4/{} url path.
     fn with_param(&self, method: Method, path: &str) -> RequestBuilder {
         let url = format!("{}/v4/{path}", self.url);
-        debug!("Creating reqwest client: {:?}", url);
+        debug!("Creating reqwest client: {url:?}");
         self.client
             .request(method, &url)
             .basic_auth(&self.username, Some(&self.password))

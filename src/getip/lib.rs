@@ -166,7 +166,7 @@ pub async fn get_ip(ip_type: IpType, ip_scope: IpScope, nic: Option<&str>) -> Re
                 if command_result.is_ok() || matches!(command_result, Err(Error::NoAddress)) {
                     return command_result;
                 }
-            };
+            }
             let p = hostip::LocalLibcProvider::new(nic, IpType::Ipv6);
             p.get_addr().await
         }
@@ -181,7 +181,7 @@ mod test {
     /// Test if any IPv6 address is available on an interface
     /// If not, the test is skipped
     fn has_any_ipv6_address(iface_name: Option<&str>, global: bool) -> bool {
-        if let Ok(addresses) = libc_getips::get_iface_addrs(Some(IpType::Ipv6), iface_name) {
+        libc_getips::get_iface_addrs(Some(IpType::Ipv6), iface_name).is_ok_and(|addresses| {
             addresses.iter().any(|ip| {
                 !ip.is_loopback()
                     && !ip.is_unspecified()
@@ -189,8 +189,8 @@ mod test {
                         if let IpAddr::V6(dcasted) = ip {
                             // !is_unicast_link_local
                             (dcasted.segments()[0] & 0xffc0) != 0xfe80
-                                    // !is_unique_local
-                                    && (dcasted.segments()[0] & 0xfe00) != 0xfc00
+                                        // !is_unique_local
+                                        && (dcasted.segments()[0] & 0xfe00) != 0xfc00
                         } else {
                             unreachable!()
                         }
@@ -198,9 +198,7 @@ mod test {
                         true
                     }
             })
-        } else {
-            false
-        }
+        })
     }
 
     #[tokio::test]

@@ -76,10 +76,7 @@ fn get_addr_for_ifa_unix(addr: libc::ifaddrs, ip_type: Option<IpType>) -> Result
             return Err(Error::NoAddress);
         }
     } else if family != libc::AF_INET && family != libc::AF_INET6 {
-        trace!(
-            "Short-circuiting NoAddress: family type {:?} not address",
-            family
-        );
+        trace!("Short-circuiting NoAddress: family type {family:?} not address");
         return Err(Error::NoAddress);
     }
     // Length for `getnameinfo`
@@ -146,7 +143,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         // Interface name
         let ifa_name = unsafe { CStr::from_ptr(addr.ifa_name).to_bytes() };
         let ifa_name = unsafe { std::str::from_utf8_unchecked(ifa_name) };
-        trace!("Got interface {:?}", ifa_name);
+        trace!("Got interface {ifa_name:?}");
         // Filter iface name
         let address = iface_name.map_or_else(
             || get_addr_for_ifa_unix(addr, ip_type),
@@ -160,10 +157,7 @@ pub fn get_iface_addrs(ip_type: Option<IpType>, iface_name: Option<&str>) -> Res
         );
         if let Ok(address) = address {
             trace!(
-                "Found good addresses of type {:?} for interface {:?}: {:?}",
-                ip_type,
-                iface_name,
-                address
+                "Found good addresses of type {ip_type:?} for interface {iface_name:?}: {address:?}"
             );
             result.push(address);
         }

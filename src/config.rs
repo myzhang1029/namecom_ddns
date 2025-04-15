@@ -94,10 +94,10 @@ pub struct NameComDdnsConfig {
 impl NameComDdnsConfig {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut file = File::open(path)?;
-        debug!("Opened file {:?}", file);
+        debug!("Opened file {file:?}");
         let mut file_content = String::new();
         file.read_to_string(&mut file_content)?;
-        trace!("Configuration contains {:?}", file_content);
+        trace!("Configuration contains {file_content:?}");
         Ok(toml::from_str(&file_content)?)
     }
 }

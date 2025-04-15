@@ -93,7 +93,7 @@ async fn main() {
 
     // Check and update the DNS according to the config
     let mut interval = time::interval(time::Duration::from_secs(configuration.core.interval * 60));
-    debug!("Configuration: {:?}", configuration);
+    debug!("Configuration: {configuration:?}");
     let url = configuration.core.url;
     // Create a API client
     let client = api::NameComDnsApi::create(
@@ -131,7 +131,7 @@ async fn get_ip_from_command(ip_type: IpType, command: &[String]) -> Result<IpAd
             }
         }
         Err(error) => {
-            error!("Command {:?} failed to be executed: {}", command, error);
+            error!("Command {command:?} failed to be executed: {error}");
             Err(getip::Error::IoError(error))
         }
     }
@@ -193,8 +193,7 @@ impl<'a> DdnsApp<'a> {
             if matches.is_empty() {
                 None
             } else {
-                let mut cache = self.id_cache.write().await;
-                cache.insert(item.clone(), matches[0]);
+                self.id_cache.write().await.insert(item.clone(), matches[0]);
                 Some(matches[0])
             }
         } else {

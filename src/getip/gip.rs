@@ -113,7 +113,7 @@ macro_rules! make_new {
     ($name: ident) => {
         impl $name {
             /// Create a new $name.
-            fn new(info: ProviderInfo, timeout: u64, proxy: Option<String>) -> Self {
+            const fn new(info: ProviderInfo, timeout: u64, proxy: Option<String>) -> Self {
                 Self(AbstractProvider {
                     info,
                     timeout,

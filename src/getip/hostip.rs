@@ -133,7 +133,7 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> Result<Output> {
     for (cmd, args) in commands {
         let mut command = Command::new(cmd);
         command.stdout(Stdio::piped());
-        debug!("Running command {:?} with arguments {:?}", cmd, args);
+        debug!("Running command {cmd:?} with arguments {args:?}");
         let output = command.args(&args).output().await;
         match output {
             Ok(output) => {
@@ -148,10 +148,7 @@ async fn chain_ip_cmd_until_succeed(nic: &str) -> Result<Output> {
                 last_error = Some(Error::NonZeroExit(output.status));
             }
             Err(exec_error) => {
-                debug!(
-                    "Command {:?} failed to be executed: {}",
-                    command, exec_error
-                );
+                debug!("Command {command:?} failed to be executed: {exec_error}");
                 last_error = Some(Error::IoError(exec_error));
             }
         }
@@ -188,10 +185,7 @@ macro_rules! cast_ipv6 {
 fn filter_nonroute_ipv4(addr: &&IpAddr) -> bool {
     let remove = !addr.is_loopback() && !cast_ipv4!(addr).is_link_local() && !addr.is_unspecified();
     if remove {
-        debug!(
-            "Removing address {:?} because it is loopback/link local/unspecified",
-            addr
-        );
+        debug!("Removing address {addr:?} because it is loopback/link local/unspecified");
     }
     remove
 }
